@@ -1,0 +1,39 @@
+[
+    {
+        "cliente": "Valeria Martin",
+        "tipo": "Riviera Maya",
+        "destino": "AVA",
+        "precio_total": 20000.0,
+        "porcentaje_ganancia": 15.0,
+        "fecha_limite": "30/07/2026",
+        "fecha_inicio": "28/08/2026",
+        "fecha_fin": "30/08/2026",
+        "pagos": [
+            7500.0
+        ]
+    },
+    {
+        "cliente": "Juan Luis Garcia",
+        "tipo": "Riviera",
+        "destino": "Barcelo",
+        "precio_total": 30000.0,
+        "porcentaje_ganancia": 12.0,
+        "fecha_limite": "25/04/2026",
+        "fecha_inicio": "25/05/2026",
+        "fecha_fin": "27/05/2026",
+        "pagos": [
+            5000.0
+        ]
+    },
+    {
+        "cliente": "Veronica Garcia",
+        "tipo": "RIVIERA",
+        "destino": "IBEROSTAR",
+        "precio_total": 15000.0,
+        "porcentaje_ganancia": 0.0,
+        "fecha_limite": "07/02/2026",
+        "fecha_inicio": "07/02/2026",
+        "fecha_fin": "09/02/2026",
+        "pagos": []
+    }
+]

@@ -1,0 +1,30 @@
+[
+    {
+        "id_vendedora": 1,
+        "usuario": "admin",
+        "password": "admin123",
+        "nombre": "Administrador",
+        "rol": "ADMIN"
+    },
+    {
+        "id_vendedora": 1,
+        "usuario": "ZajhiaG",
+        "password": "Mar02",
+        "nombre": "Zajhia G",
+        "rol": "VENDEDORA"
+    },
+    {
+        "id_vendedora": 2,
+        "usuario": "NayeliB",
+        "password": "Ene29",
+        "nombre": "Nayeli B",
+        "rol": "VENDEDORA"
+    },
+    {
+        "id_vendedora": 3,
+        "usuario": "valeriamartinsosa",
+        "password": "valeriamartinsosa123",
+        "nombre": "Valeria Martin Sosa",
+        "rol": "VENDEDORA"
+    }
+]
