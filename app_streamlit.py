@@ -10,6 +10,13 @@ import json
 import io
 import os
 
+# Módulo de transferencias
+try:
+    from transferencias import mostrar_pagina_transferencias
+    TRANSFERENCIAS_DISPONIBLE = True
+except ImportError:
+    TRANSFERENCIAS_DISPONIBLE = False
+
 # ── Generador de recibos Turismar ─────────────────────────────────────────
 try:
     from generar_recibo import generar_recibo_pdf
@@ -7083,6 +7090,7 @@ def menu_lateral():
             "🏖️ Riviera Maya": "riviera",
             "🎫 Viajes Nacionales": "nacionales",
             "🌎 Viajes Internacionales": "internacionales",
+            "💸 Transferencias": "transferencias",
             "🗂️ Otros": "otros",
             "📊 Reportes": "reportes"
         }
@@ -7164,6 +7172,11 @@ def main():
             pagina_viajes_nacionales()
         elif st.session_state.pagina_actual == "internacionales":
             pagina_viajes_internacionales()
+        elif st.session_state.pagina_actual == "transferencias":
+            if TRANSFERENCIAS_DISPONIBLE:
+                mostrar_pagina_transferencias()
+            else:
+                st.error("⚠️ Módulo de transferencias no disponible")
         elif st.session_state.pagina_actual == "otros":
             pagina_otros()
         elif st.session_state.pagina_actual == "reportes":

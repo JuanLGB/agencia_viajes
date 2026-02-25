@@ -308,7 +308,24 @@ def crear_tablas():
             FOREIGN KEY (venta_id) REFERENCES ventas(id)
         )
     """)
-    
+
+    # ===== TABLA TRANSFERENCIAS =====
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS transferencias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha TEXT NOT NULL,
+            nombre_envia TEXT NOT NULL,
+            cantidad REAL NOT NULL,
+            estado TEXT DEFAULT 'PENDIENTE',
+            aplicado_en TEXT,
+            fecha_aplicacion TEXT,
+            observaciones TEXT,
+            id_vendedora INTEGER,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (id_vendedora) REFERENCES vendedoras(id)
+        )
+    """)
+
     # ===== AGREGAR COLUMNA fecha_pago_comision SI NO EXISTE =====
     try:
         cursor.execute("ALTER TABLE ventas ADD COLUMN fecha_pago_comision TEXT")
