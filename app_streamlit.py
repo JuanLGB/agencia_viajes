@@ -11,22 +11,10 @@ import io
 import os
 
 # Configuración de base de datos
-# Intentar importar psycopg2 solo si está disponible
-try:
-    import psycopg as psycopg2
-    PSYCOPG2_DISPONIBLE = True
-except ImportError:
-    PSYCOPG2_DISPONIBLE = False
-
-# Si existe la variable DATABASE_URL Y psycopg2 está disponible, usar PostgreSQL
-if 'DATABASE_URL' in os.environ and PSYCOPG2_DISPONIBLE:
-    # Usar PostgreSQL en producción (Streamlit Cloud)
-    DB_CONNECTION = os.environ['DATABASE_URL']
-    ES_POSTGRES = True
-else:
-    # Usar SQLite local (desarrollo)
-    DB_NAME = "agencia.db"
-    ES_POSTGRES = False
+# Por ahora siempre usar SQLite
+DB_NAME = "agencia.db"
+ES_POSTGRES = False
+PSYCOPG2_DISPONIBLE = False
 
 # Módulo de transferencias
 try:
@@ -415,13 +403,8 @@ def obtener_tipo_cambio():
 
 
 def conectar_db():
-    """Conecta a la base de datos"""
-    if ES_POSTGRES:
-        # Conectar a PostgreSQL (Neon)
-        return psycopg2.connect(DB_CONNECTION)
-    else:
-        # Conectar a SQLite local
-        return sqlite3.connect(DB_NAME, check_same_thread=False)
+    """Conecta a la base de datos SQLite"""
+    return sqlite3.connect(DB_NAME, check_same_thread=False)
 
 
 def inicializar_base_datos():
