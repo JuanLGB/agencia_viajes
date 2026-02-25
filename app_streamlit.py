@@ -4952,6 +4952,666 @@ def _excel_financiero(anio):
 
 
 # ════════════════════════════════════════════════════════════════════════════
+#  REPORTE SEMANAL — Resumen de la semana seleccionada
+# ════════════════════════════════════════════════════════════════════════════
+
+def pagina_reporte_semanal():
+    """Reporte semanal interactivo con selector de semana"""
+    from datetime import timedelta
+
+    st.title("📅 Reporte Semanal")
+    st.markdown("Selecciona una fecha (sábado) para ver el resumen de esa semana")
+
+    # Selector de fecha (sábado como referencia)
+    fecha_sabado = st.date_input(
+        "📆 Selecciona el sábado de la semana:",
+        value=datetime.now().date(),
+        help="Las semanas van de domingo a sábado"
+    )
+
+    # Calcular inicio de semana (domingo) y fin (sábado)
+    # El día de la semana del domingo es 6 (saturday) en Python
+    dias_hasta_sabado = fecha_sabado.weekday()  # 0=lunes, 6=domingo
+    # Si el día seleccionado es sábado (5), остается igual
+    # Ajustar para obtener el domingo anterior
+    if fecha_sabado.weekday() == 5:  # Es sábado
+        fecha_fin = fecha_sabado
+        fecha_inicio = fecha_sabado - timedelta(days=6)
+    else:
+        # Si no es sábado, ajustar al sábado más cercano de esa semana
+        dias_al_sabado = (5 - fecha_sabado.weekday()) % 7
+        fecha_fin = fecha_sabado + timedelta(days=dias_al_sabado)
+        fecha_inicio = fecha_fin - timedelta(days=6)
+
+    fecha_inicio_str = fecha_inicio.strftime("%Y-%m-%d")
+    fecha_fin_str = fecha_fin.strftime("%Y-%m-%d")
+
+    st.markdown(f"**📅 Semana del {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')}**")
+
+    conn = conectar_db()
+    cursor = conn.cursor()
+
+    # ===== RESUMEN EJECUTIVO =====
+    st.subheader("📈 Resumen Ejecutivo")
+
+    # 1. Reservas nuevas (ventas registradas en la semana)
+    cursor.execute("""
+        SELECT COUNT(*), COALESCE(SUM(precio_total), 0), COALESCE(SUM(pagado), 0)
+        FROM ventas
+        WHERE date(fecha_registro) BETWEEN ? AND ?
+    """, (fecha_inicio_str, fecha_fin_str))
+    row_ventas = cursor.fetchone()
+    total_reservas = row_ventas[0] or 0
+    monto_reservas = row_ventas[1] or 0
+    pagado_reservas = row_ventas[2] or 0
+
+    # 2. Abonos de la semana (todas las tablas de abonos)
+    cursor.execute("""
+        SELECT COALESCE(SUM(monto), 0) FROM abonos
+        WHERE date(fecha) BETWEEN ? AND ?
+    """, (fecha_inicio_str, fecha_fin_str))
+    abonos_riviera = cursor.fetchone()[0] or 0
+
+    cursor.execute("""
+        SELECT COALESCE(SUM(monto), 0) FROM abonos_nacionales
+        WHERE date(fecha) BETWEEN ? AND ?
+    """, (fecha_inicio_str, fecha_fin_str))
+    abonos_nacionales = cursor.fetchone()[0] or 0
+
+    cursor.execute("""
+        SELECT COALESCE(SUM(monto_usd), 0) FROM abonos_internacionales
+        WHERE date(fecha) BETWEEN ? AND ?
+    """, (fecha_inicio_str, fecha_fin_str))
+    abonos_internacionales = cursor.fetchone()[0] or 0
+
+    total_abonos = abonos_riviera + abonos_nacionales + abonos_internacionales
+
+    # 3. Gastos operativos
+    try:
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) FROM gastos_operativos
+            WHERE date(fecha_gasto) BETWEEN ? AND ?
+        """, (fecha_inicio_str, fecha_fin_str))
+        total_gastos = cursor.fetchone()[0] or 0
+    except:
+        total_gastos = 0
+
+    # 4. Comisiones pagadas
+    try:
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) FROM historial_comisiones
+            WHERE date(fecha_pago) BETWEEN ? AND ?
+        """, (fecha_inicio_str, fecha_fin_str))
+        total_comisiones = cursor.fetchone()[0] or 0
+    except:
+        total_comisiones = 0
+
+    # Mostrar tarjetas de resumen
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("🏖️ Reservas Nuevas", f"{total_reservas}", f"${monto_reservas:,.0f}")
+    with col2:
+        st.metric("💰 Total Abonos", f"${total_abonos:,.0f}")
+    with col3:
+        st.metric("📤 Gastos", f"${total_gastos:,.0f}")
+    with col4:
+        st.metric("👩‍💼 Comisiones", f"${total_comisiones:,.0f}")
+
+    # Balance de la semana
+    balance = total_abonos - total_gastos - total_comisiones
+    col_bal1, col_bal2 = st.columns(2)
+    with col_bal1:
+        st.metric("💵 Balance (Abonos - Gastos - Comisiones)", f"${balance:,.0f}")
+    with col_bal2:
+        st.metric("💳 Total Pagado en Reservas", f"${pagado_reservas:,.0f}")
+
+    # ===== BOTÓN DE DESCARGA EXCEL =====
+    if st.button("📥 Descargar Reporte Semanal en Excel", type="primary"):
+        with st.spinner("Generando Excel..."):
+            try:
+                from openpyxl import Workbook
+                from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+                from openpyxl.utils import get_column_letter
+
+                wb = Workbook()
+                ws_resumen = wb.active
+                ws_resumen.title = "Resumen"
+
+                # Estilos
+                header_font = Font(bold=True, size=12, color="FFFFFF")
+                header_fill = PatternFill(start_color="0066CC", end_color="0066CC", fill_type="solid")
+                thin_border = Border(left=Side(style='thin'), right=Side(style='thin'),
+                                   top=Side(style='thin'), bottom=Side(style='thin'))
+
+                # Hoja Resumen
+                ws_resumen['A1'] = "TURISMAR - REPORTE SEMANAL"
+                ws_resumen['A1'].font = Font(bold=True, size=14)
+                ws_resumen['A2'] = f"Semana: {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')}"
+                ws_resumen['A2'].font = Font(size=11)
+                ws_resumen['A3'] = f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+
+                ws_resumen['A5'] = "RESUMEN EJECUTIVO"
+                ws_resumen['A5'].font = Font(bold=True, size=12)
+
+                # Métricas
+                ws_resumen['A7'] = "Concepto"
+                ws_resumen['B7'] = "Valor"
+                for cell in ['A7', 'B7']:
+                    ws_resumen[cell].font = header_font
+                    ws_resumen[cell].fill = header_fill
+                    ws_resumen[cell].border = thin_border
+
+                row = 8
+                ws_resumen[f'A{row}'] = "Reservas Nuevas"
+                ws_resumen[f'B{row}'] = total_reservas
+                row += 1
+                ws_resumen[f'A{row}'] = "Monto Reservas"
+                ws_resumen[f'B{row}'] = monto_reservas
+                row += 1
+                ws_resumen[f'A{row}'] = "Total Abonos"
+                ws_resumen[f'B{row}'] = total_abonos
+                row += 1
+                ws_resumen[f'A{row}'] = "Gastos"
+                ws_resumen[f'B{row}'] = total_gastos
+                row += 1
+                ws_resumen[f'A{row}'] = "Comisiones"
+                ws_resumen[f'B{row}'] = total_comisiones
+                row += 1
+                ws_resumen[f'A{row}'] = "Balance"
+                ws_resumen[f'B{row}'] = balance
+
+                ws_resumen.column_dimensions['A'].width = 20
+                ws_resumen.column_dimensions['B'].width = 15
+
+                # Hoja Reservas Riviera
+                ws_riviera = wb.create_sheet("Reservas Riviera")
+                cursor.execute("""
+                    SELECT v.cliente, v.destino, v.fecha_inicio, v.precio_total, v.pagado, v.saldo, vd.nombre as vendedora
+                    FROM ventas v
+                    LEFT JOIN vendedoras vd ON v.vendedora_id = vd.id
+                    WHERE date(v.fecha_registro) BETWEEN ? AND ?
+                    ORDER BY v.fecha_registro DESC
+                """, (fecha_inicio_str, fecha_fin_str))
+                ventas = cursor.fetchall()
+
+                headers_riv = ["Cliente", "Destino", "Fecha Inicio", "Total", "Pagado", "Saldo", "Vendedora"]
+                for c, h in enumerate(headers_riv, 1):
+                    cell = ws_riviera.cell(row=1, column=c, value=h)
+                    cell.font = header_font
+                    cell.fill = header_fill
+
+                for r, row_data in enumerate(ventas, 2):
+                    for c, val in enumerate(row_data, 1):
+                        ws_riviera.cell(row=r, column=c, value=val)
+
+                # Hoja Nacionales
+                ws_nac = wb.create_sheet("Nacionales")
+                cursor.execute("""
+                    SELECT cn.nombre_cliente, vj.nombre_viaje, vj.destino, vj.fecha_salida,
+                           cn.total_pagar, cn.total_abonado, cn.saldo, vd.nombre as vendedora
+                    FROM clientes_nacionales cn
+                    JOIN viajes_nacionales vj ON cn.viaje_id = vj.id
+                    LEFT JOIN vendedoras vd ON cn.vendedora_id = vd.id
+                    WHERE date(cn.fecha_registro) BETWEEN ? AND ?
+                    ORDER BY cn.fecha_registro DESC
+                """, (fecha_inicio_str, fecha_fin_str))
+                nacionales = cursor.fetchall()
+
+                headers_nac = ["Cliente", "Viaje", "Destino", "Salida", "Total", "Pagado", "Saldo", "Vendedora"]
+                for c, h in enumerate(headers_nac, 1):
+                    cell = ws_nac.cell(row=1, column=c, value=h)
+                    cell.font = header_font
+                    cell.fill = header_fill
+
+                for r, row_data in enumerate(nacionales, 2):
+                    for c, val in enumerate(row_data, 1):
+                        ws_nac.cell(row=r, column=c, value=val)
+
+                # Hoja Internacionales
+                ws_int = wb.create_sheet("Internacionales")
+                cursor.execute("""
+                    SELECT ci.nombre_cliente, vi.destino, vi.fecha_salida,
+                           ci.total_usd, ci.abonado_usd, ci.saldo_usd, vd.nombre as vendedora
+                    FROM clientes_internacionales ci
+                    JOIN viajes_internacionales vi ON ci.viaje_id = vi.id
+                    LEFT JOIN vendedoras vd ON ci.vendedora_id = vd.id
+                    WHERE date(ci.fecha_registro) BETWEEN ? AND ?
+                    ORDER BY ci.fecha_registro DESC
+                """, (fecha_inicio_str, fecha_fin_str))
+                internacionales = cursor.fetchall()
+
+                headers_int = ["Cliente", "Destino", "Salida", "Total USD", "Pagado USD", "Saldo USD", "Vendedora"]
+                for c, h in enumerate(headers_int, 1):
+                    cell = ws_int.cell(row=1, column=c, value=h)
+                    cell.font = header_font
+                    cell.fill = header_fill
+
+                for r, row_data in enumerate(internacionales, 2):
+                    for c, val in enumerate(row_data, 1):
+                        ws_int.cell(row=r, column=c, value=val)
+
+                # Hoja Gastos
+                ws_gastos = wb.create_sheet("Gastos")
+                try:
+                    cursor.execute("""
+                        SELECT categoria, descripcion, monto, fecha_gasto, metodo_pago
+                        FROM gastos_operativos
+                        WHERE date(fecha_gasto) BETWEEN ? AND ?
+                        ORDER BY fecha_gasto DESC
+                    """, (fecha_inicio_str, fecha_fin_str))
+                    gastos = cursor.fetchall()
+
+                    headers_gastos = ["Categoría", "Descripción", "Monto", "Fecha", "Método"]
+                    for c, h in enumerate(headers_gastos, 1):
+                        cell = ws_gastos.cell(row=1, column=c, value=h)
+                        cell.font = header_font
+                        cell.fill = header_fill
+
+                    for r, row_data in enumerate(gastos, 2):
+                        for c, val in enumerate(row_data, 1):
+                            ws_gastos.cell(row=r, column=c, value=val)
+                except:
+                    pass
+
+                # Hoja Comisiones
+                ws_com = wb.create_sheet("Comisiones")
+                try:
+                    cursor.execute("""
+                        SELECT vd.nombre as vendedora, hc.monto, hc.fecha_pago, hc.notas
+                        FROM historial_comisiones hc
+                        LEFT JOIN vendedoras vd ON hc.vendedora_id = vd.id
+                        WHERE date(hc.fecha_pago) BETWEEN ? AND ?
+                        ORDER BY hc.fecha_pago DESC
+                    """, (fecha_inicio_str, fecha_fin_str))
+                    comisiones = cursor.fetchall()
+
+                    headers_com = ["Vendedora", "Monto", "Fecha Pago", "Notas"]
+                    for c, h in enumerate(headers_com, 1):
+                        cell = ws_com.cell(row=1, column=c, value=h)
+                        cell.font = header_font
+                        cell.fill = header_fill
+
+                    for r, row_data in enumerate(comisiones, 2):
+                        for c, val in enumerate(row_data, 1):
+                            ws_com.cell(row=r, column=c, value=val)
+                except:
+                    pass
+
+                # Guardar Excel
+                from io import BytesIO
+                output = BytesIO()
+                wb.save(output)
+                excel_data = output.getvalue()
+
+                st.download_button(
+                    label="⬇️ Descargar Excel",
+                    data=excel_data,
+                    file_name=f"reporte_semanal_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                st.success("✅ Excel generado correctamente")
+            except Exception as e:
+                st.error(f"❌ Error al generar Excel: {e}")
+
+    # ===== DETALLE POR SECCIONES =====
+    st.markdown("---")
+    tabs = st.tabs(["🏖️ Reservas Riviera", "🎫 Nacionales", "🌎 Internacionales", "💰 Gastos", "👩‍💼 Comisiones"])
+
+    # Reservas Riviera
+    with tabs[0]:
+        st.subheader("🏖️ Reservas Riviera Maya")
+        cursor.execute("""
+            SELECT v.id, v.cliente, v.destino, v.fecha_inicio, v.precio_total, v.pagado, v.saldo, vd.nombre as vendedora
+            FROM ventas v
+            LEFT JOIN vendedoras vd ON v.vendedora_id = vd.id
+            WHERE date(v.fecha_registro) BETWEEN ? AND ?
+            ORDER BY v.fecha_registro DESC
+        """, (fecha_inicio_str, fecha_fin_str))
+        ventas = cursor.fetchall()
+
+        if ventas:
+            df_ventas = pd.DataFrame(ventas, columns=["ID", "Cliente", "Destino", "Fecha Inicio", "Total", "Pagado", "Saldo", "Vendedora"])
+            st.dataframe(df_ventas, use_container_width=True, hide_index=True)
+        else:
+            st.info("No hay reservas de Riviera en esta semana.")
+
+    # Nacionales
+    with tabs[1]:
+        st.subheader("🎫 Viajes Nacionales")
+        cursor.execute("""
+            SELECT cn.id, cn.nombre_cliente, vj.nombre_viaje, vj.destino, vj.fecha_salida,
+                   cn.total_pagar, cn.total_abonado, cn.saldo, vd.nombre as vendedora
+            FROM clientes_nacionales cn
+            JOIN viajes_nacionales vj ON cn.viaje_id = vj.id
+            LEFT JOIN vendedoras vd ON cn.vendedora_id = vd.id
+            WHERE date(cn.fecha_registro) BETWEEN ? AND ?
+            ORDER BY cn.fecha_registro DESC
+        """, (fecha_inicio_str, fecha_fin_str))
+        nacionales = cursor.fetchall()
+
+        if nacionales:
+            df_nac = pd.DataFrame(nacionales, columns=["ID", "Cliente", "Viaje", "Destino", "Salida", "Total", "Pagado", "Saldo", "Vendedora"])
+            st.dataframe(df_nac, use_container_width=True, hide_index=True)
+        else:
+            st.info("No hay clientes nacionales nuevos en esta semana.")
+
+        # Abonos nacionales
+        st.markdown("#### Abonos de Nacionales")
+        cursor.execute("""
+            SELECT an.id, an.cliente_id, an.monto, an.fecha, an.metodo_pago
+            FROM abonos_nacionales an
+            WHERE date(an.fecha) BETWEEN ? AND ?
+            ORDER BY an.fecha DESC
+        """, (fecha_inicio_str, fecha_fin_str))
+        abonos_nac = cursor.fetchall()
+        if abonos_nac:
+            df_abonos_nac = pd.DataFrame(abonos_nac, columns=["ID", "Cliente ID", "Monto", "Fecha", "Método"])
+            st.dataframe(df_abonos_nac, use_container_width=True, hide_index=True)
+        else:
+            st.info("No hay abonos de nacionales en esta semana.")
+
+    # Internacionales
+    with tabs[2]:
+        st.subheader("🌎 Viajes Internacionales")
+        cursor.execute("""
+            SELECT ci.id, ci.nombre_cliente, vi.destino, vi.fecha_salida,
+                   ci.total_usd, ci.abonado_usd, ci.saldo_usd, vd.nombre as vendedora
+            FROM clientes_internacionales ci
+            JOIN viajes_internacionales vi ON ci.viaje_id = vi.id
+            LEFT JOIN vendedoras vd ON ci.vendedora_id = vd.id
+            WHERE date(ci.fecha_registro) BETWEEN ? AND ?
+            ORDER BY ci.fecha_registro DESC
+        """, (fecha_inicio_str, fecha_fin_str))
+        internacionales = cursor.fetchall()
+
+        if internacionales:
+            df_int = pd.DataFrame(internacionales, columns=["ID", "Cliente", "Destino", "Salida", "Total USD", "Pagado USD", "Saldo USD", "Vendedora"])
+            st.dataframe(df_int, use_container_width=True, hide_index=True)
+        else:
+            st.info("No hay clientes internacionales nuevos en esta semana.")
+
+        # Abonos internacionales
+        st.markdown("#### Abonos de Internacionales")
+        cursor.execute("""
+            SELECT ai.id, ai.cliente_id, ai.monto_usd, ai.monto_mxn, ai.fecha, ai.metodo_pago
+            FROM abonos_internacionales ai
+            WHERE date(ai.fecha) BETWEEN ? AND ?
+            ORDER BY ai.fecha DESC
+        """, (fecha_inicio_str, fecha_fin_str))
+        abonos_int = cursor.fetchall()
+        if abonos_int:
+            df_abonos_int = pd.DataFrame(abonos_int, columns=["ID", "Cliente ID", "Monto USD", "Monto MXN", "Fecha", "Método"])
+            st.dataframe(df_abonos_int, use_container_width=True, hide_index=True)
+        else:
+            st.info("No hay abonos de internacionales en esta semana.")
+
+    # Gastos
+    with tabs[3]:
+        st.subheader("💰 Gastos Operativos")
+        try:
+            cursor.execute("""
+                SELECT id, categoria, descripcion, monto, fecha_gasto, metodo_pago
+                FROM gastos_operativos
+                WHERE date(fecha_gasto) BETWEEN ? AND ?
+                ORDER BY fecha_gasto DESC
+            """, (fecha_inicio_str, fecha_fin_str))
+            gastos = cursor.fetchall()
+
+            if gastos:
+                df_gastos = pd.DataFrame(gastos, columns=["ID", "Categoría", "Descripción", "Monto", "Fecha", "Método"])
+                st.dataframe(df_gastos, use_container_width=True, hide_index=True)
+
+                # Total por categoría
+                st.markdown("#### Total por Categoría")
+                cursor.execute("""
+                    SELECT categoria, SUM(monto) as total
+                    FROM gastos_operativos
+                    WHERE date(fecha_gasto) BETWEEN ? AND ?
+                    GROUP BY categoria
+                    ORDER BY total DESC
+                """, (fecha_inicio_str, fecha_fin_str))
+                por_categoria = cursor.fetchall()
+                for cat, total in por_categoria:
+                    st.write(f"- **{cat}**: ${total:,.0f}")
+            else:
+                st.info("No hay gastos registrados en esta semana.")
+        except Exception as e:
+            st.warning(f"Tabla de gastos no disponible: {e}")
+
+    # Comisiones
+    with tabs[4]:
+        st.subheader("👩‍💼 Comisiones Pagadas")
+        try:
+            cursor.execute("""
+                SELECT hc.id, vd.nombre as vendedora, hc.monto, hc.fecha_pago, hc.notas
+                FROM historial_comisiones hc
+                LEFT JOIN vendedoras vd ON hc.vendedora_id = vd.id
+                WHERE date(hc.fecha_pago) BETWEEN ? AND ?
+                ORDER BY hc.fecha_pago DESC
+            """, (fecha_inicio_str, fecha_fin_str))
+            comisiones = cursor.fetchall()
+
+            if comisiones:
+                df_com = pd.DataFrame(comisiones, columns=["ID", "Vendedora", "Monto", "Fecha Pago", "Notas"])
+                st.dataframe(df_com, use_container_width=True, hide_index=True)
+            else:
+                st.info("No hay comisiones pagadas en esta semana.")
+        except Exception as e:
+            st.warning(f"Tabla de comisiones no disponible: {e}")
+
+    conn.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  PÁGINA DE GASTOS OPERATIVOS
+# ════════════════════════════════════════════════════════════════════════════
+
+def pagina_gastos():
+    """Página para registrar y visualizar gastos operativos"""
+    st.title("💰 Gastos Operativos")
+
+    usuario = st.session_state.usuario_actual
+    es_admin = usuario.get("rol") == "ADMIN"
+
+    conn = conectar_db()
+    cursor = conn.cursor()
+
+    # Verificar si las tablas existen
+    tablas_existen = True
+    try:
+        cursor.execute("SELECT COUNT(*) FROM categorias_gastos")
+        cursor.execute("SELECT COUNT(*) FROM gastos_operativos")
+    except:
+        tablas_existen = False
+        st.warning("⚠️ Las tablas de gastos no están configuradas. Ejecuta primero la migración de gastos.")
+
+    if not tablas_existen:
+        conn.close()
+        return
+
+    # Tabs para las secciones
+    tabs = st.tabs(["📝 Registrar Gasto", "📋 Lista de Gastos", "📊 Resumen"])
+
+    # ===== TAB 1: REGISTRAR GASTO =====
+    with tabs[0]:
+        st.subheader("📝 Registrar Nuevo Gasto")
+
+        with st.form("form_gasto"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Categoría
+                cursor.execute("SELECT id, nombre, icono FROM categorias_gastos WHERE activa = 1 ORDER BY nombre")
+                categorias = cursor.fetchall()
+
+                opciones_cat = {f"{c[2]} {c[1]}": c[0] for c in categorias}
+                cat_seleccionada = st.selectbox("Categoría", list(opciones_cat.keys()), placeholder="Selecciona categoría")
+
+                # Descripción
+                descripcion = st.text_area("Descripción", placeholder="Describe el gasto...")
+
+                # Monto
+                monto = st.number_input("Monto ($)", min_value=0.0, value=0.0, step=100.0)
+
+            with col2:
+                # Fecha del gasto
+                fecha_gasto = st.date_input("Fecha del Gasto", value=datetime.now().date())
+
+                # Método de pago
+                metodo_pago = st.selectbox("Método de Pago", ["Efectivo", "Transferencia", "Tarjeta Débito", "Tarjeta Crédito", "Cheque", "Otro"])
+
+                # Proveedor
+                proveedor = st.text_input("Proveedor (opcional)", placeholder="Nombre del proveedor...")
+
+            # Notas adicionales
+            notas = st.text_area("Notas adicionales (opcional)")
+
+            submitted = st.form_submit_button("💾 Registrar Gasto", type="primary", use_container_width=True)
+
+            if submitted:
+                if cat_seleccionada and monto > 0:
+                    try:
+                        cursor.execute("""
+                            INSERT INTO gastos_operativos (
+                                categoria, descripcion, monto, fecha_gasto, mes, anio,
+                                metodo_pago, proveedor, notas, fecha_registro, usuario_registro
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            opciones_cat[cat_seleccionada],
+                            descripcion,
+                            monto,
+                            fecha_gasto.strftime("%Y-%m-%d"),
+                            fecha_gasto.month,
+                            fecha_gasto.year,
+                            metodo_pago,
+                            proveedor,
+                            notas,
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            usuario.get("nombre", "Admin")
+                        ))
+                        conn.commit()
+                        st.success("✅ Gasto registrado correctamente")
+                    except Exception as e:
+                        st.error(f"❌ Error al registrar: {e}")
+                else:
+                    st.warning("⚠️ Por favor selecciona una categoría y monto válido")
+
+    # ===== TAB 2: LISTA DE GASTOS =====
+    with tabs[1]:
+        st.subheader("📋 Lista de Gastos")
+
+        # Filtros
+        col_f1, col_f2, col_f3 = st.columns(3)
+
+        with col_f1:
+            # Filtro por mes
+            mes_actual = datetime.now().month
+            anio_actual = datetime.now().year
+            mes_sel = st.selectbox("Mes",
+                ["Todos", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                 "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"],
+                index=mes_actual)
+
+        with col_f2:
+            anio_sel = st.selectbox("Año", list(range(anio_actual, anio_actual-5, -1)))
+
+        with col_f3:
+            # Filtro por categoría
+            cursor.execute("SELECT nombre FROM categorias_gastos ORDER BY nombre")
+            cats = [c[0] for c in cursor.fetchall()]
+            cat_todas = ["Todas"] + cats
+            cat_filtro = st.selectbox("Categoría", cat_todas)
+
+        # Construir query
+        query = "SELECT id, categoria, descripcion, monto, fecha_gasto, metodo_pago, proveedor FROM gastos_operativos WHERE 1=1"
+        params = []
+
+        if mes_sel != "Todos":
+            mes_num = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"].index(mes_sel) + 1
+            query += " AND mes = ?"
+            params.append(mes_num)
+
+        query += " AND anio = ?"
+        params.append(anio_sel)
+
+        if cat_filtro != "Todas":
+            query += " AND categoria = ?"
+            params.append(cat_filtro)
+
+        query += " ORDER BY fecha_gasto DESC"
+
+        cursor.execute(query, params)
+        gastos = cursor.fetchall()
+
+        if gastos:
+            df_gastos = pd.DataFrame(gastos, columns=["ID", "Categoría", "Descripción", "Monto", "Fecha", "Método", "Proveedor"])
+            st.dataframe(df_gastos, use_container_width=True, hide_index=True)
+
+            # Total
+            total = df_gastos["Monto"].sum()
+            st.metric("💵 Total del período", f"${total:,.2f}")
+        else:
+            st.info("No hay gastos registrados para los filtros seleccionados.")
+
+    # ===== TAB 3: RESUMEN =====
+    with tabs[2]:
+        st.subheader("📊 Resumen por Categoría")
+
+        col_r1, col_r2 = st.columns(2)
+
+        with col_r1:
+            # Resumen del mes actual
+            cursor.execute("""
+                SELECT categoria, SUM(monto) as total
+                FROM gastos_operativos
+                WHERE mes = ? AND anio = ?
+                GROUP BY categoria
+                ORDER BY total DESC
+            """, (mes_actual, anio_actual))
+
+            resumen = cursor.fetchall()
+
+            st.markdown(f"**{['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][mes_actual-1]} {anio_actual}**")
+
+            if resumen:
+                total_mes = 0
+                for cat, total in resumen:
+                    st.write(f"**{cat}**: ${total:,.2f}")
+                    total_mes += total
+                st.markdown("---")
+                st.metric("💵 Total del Mes", f"${total_mes:,.2f}")
+            else:
+                st.info("Sin gastos este mes")
+
+        with col_r2:
+            # Resumen del año
+            cursor.execute("""
+                SELECT categoria, SUM(monto) as total
+                FROM gastos_operativos
+                WHERE anio = ?
+                GROUP BY categoria
+                ORDER BY total DESC
+            """, (anio_actual,))
+
+            resumen_anio = cursor.fetchall()
+
+            st.markdown(f"**Año {anio_actual}**")
+
+            if resumen_anio:
+                total_anio = 0
+                for cat, total in resumen_anio:
+                    st.write(f"**{cat}**: ${total:,.2f}")
+                    total_anio += total
+                st.markdown("---")
+                st.metric("💵 Total del Año", f"${total_anio:,.2f}")
+            else:
+                st.info("Sin gastos este año")
+
+    conn.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════
 #  PÁGINA PRINCIPAL DE REPORTES — con control de roles
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -5004,7 +5664,7 @@ def pagina_reportes():
                             st.error(f"❌ {e}")
 
         with tabs_v[2]:
-            df_vj_vi=_query_rep(f"""SELECT DISTINCT vi.id, vi.nombre_viaje, vi.destino, vi.fecha_salida
+            df_vj_vi=_query_rep(f"""SELECT DISTINCT vi.id, vi.destino as nombre_viaje, vi.destino, vi.fecha_salida
                 FROM viajes_internacionales vi JOIN clientes_internacionales ci ON ci.viaje_id=vi.id
                 WHERE ci.vendedora_id={id_vend} ORDER BY vi.fecha_salida DESC""")
             if df_vj_vi.empty:
@@ -7205,10 +7865,12 @@ def menu_lateral():
             "🎫 Viajes Nacionales": "nacionales",
             "🌎 Viajes Internacionales": "internacionales",
             "💸 Transferencias": "transferencias",
+            "💰 Gastos": "gastos",
             "🗂️ Otros": "otros",
+            "📅 Reporte Semanal": "reporte_semanal",
             "📊 Reportes": "reportes"
         }
-        
+
         if usuario["rol"] == "ADMIN":
             opciones["💰 Comisiones / Config"] = "config"
         if usuario["rol"] == "VENDEDORA":
@@ -7291,10 +7953,14 @@ def main():
                 mostrar_pagina_transferencias()
             else:
                 st.error("⚠️ Módulo de transferencias no disponible")
+        elif st.session_state.pagina_actual == "gastos":
+            pagina_gastos()
         elif st.session_state.pagina_actual == "otros":
             pagina_otros()
         elif st.session_state.pagina_actual == "reportes":
             pagina_reportes()
+        elif st.session_state.pagina_actual == "reporte_semanal":
+            pagina_reporte_semanal()
         elif st.session_state.pagina_actual == "config":
             pagina_configuracion()
         elif st.session_state.pagina_actual == "mi_historial":
