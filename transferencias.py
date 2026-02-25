@@ -16,6 +16,10 @@ def mostrar_pagina_transferencias():
     mayoristas = cursor.fetchall()
     dict_mayoristas = {m[1]: m[0] for m in mayoristas}
 
+    # Obtener lista de vendedoras
+    cursor.execute("SELECT id, nombre FROM vendedoras WHERE activa = 1 ORDER BY nombre")
+    vendedoras = cursor.fetchall()
+
     # ===== DASHBOARD DE RESUMEN =====
     cursor.execute("""
         SELECT
@@ -59,7 +63,14 @@ def mostrar_pagina_transferencias():
                     index=0
                 )
 
-            nombre_envia = st.text_input("Nombre de quien envía", placeholder="Ej: Pedro González")
+            col_nombre, col_vendedora = st.columns(2)
+            with col_nombre:
+                nombre_envia = st.text_input("Nombre de quien envía", placeholder="Ej: Pedro González")
+
+            with col_vendedora:
+                # Obtener vendedoras para el select
+                opciones_vendedoras = [""] + [v[1] for v in vendedoras]
+                nombre_vendedora = st.selectbox("Vendedora que registra", opciones_vendedoras, index=0)
 
             cantidad = st.number_input("Cantidad transferida ($)", min_value=0.01, value=1000.0, step=100.0)
 
@@ -74,9 +85,15 @@ def mostrar_pagina_transferencias():
                     st.error("⚠️ La cantidad debe ser mayor a cero")
                 elif not empresa_mayorista:
                     st.error("⚠️ Selecciona la empresa mayorista")
+                elif not nombre_vendedora:
+                    st.error("⚠️ Selecciona la vendedora que registra")
                 else:
-                    # Obtener ID de vendedora logueada
-                    id_vendedora = st.session_state.get("id_vendedora", 1)
+                    # Obtener ID de vendedora seleccionada
+                    id_vendedora = None
+                    for v in vendedoras:
+                        if v[1] == nombre_vendedora:
+                            id_vendida = v[0]
+                            break
 
                     cursor.execute("""
                         INSERT INTO transferencias (fecha, nombre_envia, cantidad, estado, observaciones, id_vendedora, empresa_mayorista)
@@ -84,7 +101,7 @@ def mostrar_pagina_transferencias():
                     """, (str(fecha_transferencia), nombre_envia.strip(), cantidad, observaciones.strip() if observaciones else None, id_vendedora, empresa_mayorista))
 
                     conexion.commit()
-                    st.success(f"✅ Transferencia registrada: {nombre_envia} - ${cantidad:,.2f} - Mayorista: {empresa_mayorista}")
+                    st.success(f"✅ Transferencia registrada: {nombre_envia} - ${cantidad:,.2f} - Mayorista: {empresa_mayorista} - Registró: {nombre_vendedora}")
                     st.rerun()
 
     # ===== TAB 2: VER HISTORIAL =====
@@ -108,31 +125,48 @@ def mostrar_pagina_transferencias():
             filtro_mayorista = st.selectbox("Filtrar por mayorista", filter_may)
 
         with col_filtro4:
-            cursor.execute("SELECT DISTINCT substr(fecha, 1, 4) as año FROM transferencias ORDER BY año DESC")
-            años = ["TODOS"] + [r[0] for r in cursor.fetchall()]
-            filtro_año = st.selectbox("Filtrar por año", años)
+            # Filtro por vendedora
+            cursor.execute("""
+                SELECT DISTINCT v.nombre
+                FROM transferencias t
+                LEFT JOIN vendedoras v ON t.id_vendedora = v.id
+                WHERE t.id_vendedora IS NOT NULL
+                ORDER BY v.nombre
+            """)
+            filtro_vend = ["TODOS"] + [r[0] for r in cursor.fetchall() if r[0]]
+            if filtro_vend:
+                filtro_vendedora = st.selectbox("Filtrar por vendedora", filtro_vend)
+            else:
+                filtro_vendedora = "TODOS"
 
         # Construir query con filtros
-        query = "SELECT id, fecha, nombre_envia, cantidad, empresa_mayorista, estado, aplicado_en, fecha_aplicacion, observaciones, created_at FROM transferencias WHERE 1=1"
+        query = """
+            SELECT t.id, t.fecha, t.nombre_envia, t.cantidad, t.empresa_mayorista, t.estado,
+                   t.aplicado_en, t.fecha_aplicacion, t.observaciones, v.nombre as nombre_vendedora,
+                   (SELECT cliente FROM ventas WHERE no_localizador = t.aplicado_en LIMIT 1) as responsable_localizador
+            FROM transferencias t
+            LEFT JOIN vendedoras v ON t.id_vendedora = v.id
+            WHERE 1=1
+        """
         params = []
 
         if filtro_estado != "TODOS":
-            query += " AND estado = ?"
+            query += " AND t.estado = ?"
             params.append(filtro_estado)
 
         if filtro_nombre != "TODOS":
-            query += " AND nombre_envia = ?"
+            query += " AND t.nombre_envia = ?"
             params.append(filtro_nombre)
 
         if filtro_mayorista != "TODOS":
-            query += " AND empresa_mayorista = ?"
+            query += " AND t.empresa_mayorista = ?"
             params.append(filtro_mayorista)
 
-        if filtro_año != "TODOS":
-            query += " AND substr(fecha, 1, 4) = ?"
-            params.append(filtro_año)
+        if filtro_vendedora != "TODOS":
+            query += " AND v.nombre = ?"
+            params.append(filtro_vendedora)
 
-        query += " ORDER BY fecha DESC, id DESC"
+        query += " ORDER BY t.fecha DESC, t.id DESC"
 
         df = pd.read_sql_query(query, conexion, params=params)
 
@@ -158,11 +192,13 @@ def mostrar_pagina_transferencias():
                 hide_index=True,
                 column_config={
                     "fecha": "Fecha",
-                    "nombre_envia": "Nombre",
+                    "nombre_envia": "Cliente que paga",
                     "cantidad": "Cantidad",
                     "empresa_mayorista": "Mayorista",
+                    "nombre_vendedora": "Vendedora",
                     "estado": "Estado",
                     "aplicado_en": "Aplicado en",
+                    "responsable_localizador": "Responsable localizador",
                     "fecha_aplicacion": "Fecha aplicación",
                     "observaciones": "Observaciones"
                 }
@@ -187,12 +223,13 @@ def mostrar_pagina_transferencias():
     with tab3:
         st.subheader("Aplicar Transferencia a un Viaje")
 
-        # Obtener transferencias pendientes
+        # Obtener transferencias pendientes con nombre de vendedora
         cursor.execute("""
-            SELECT id, fecha, nombre_envia, cantidad, empresa_mayorista
-            FROM transferencias
-            WHERE estado = 'PENDIENTE'
-            ORDER BY fecha DESC
+            SELECT t.id, t.fecha, t.nombre_envia, t.cantidad, t.empresa_mayorista, v.nombre as nombre_vendedora
+            FROM transferencias t
+            LEFT JOIN vendedoras v ON t.id_vendedora = v.id
+            WHERE t.estado = 'PENDIENTE'
+            ORDER BY t.fecha DESC
         """)
         pendientes = cursor.fetchall()
 
@@ -200,14 +237,19 @@ def mostrar_pagina_transferencias():
             st.info("ℹ️ No hay transferencias pendientes de aplicar.")
         else:
             # Seleccionar transferencia
-            opciones_transferencia = [f"#{t[0]} - {t[2]} - ${t[3]:,.2f} - {t[4]} ({t[1]})" for t in pendientes]
+            opciones_transferencia = [f"#{t[0]} - {t[2]} - ${t[3]:,.2f} - {t[4]} ({t[1]}) - Registró: {t[5]}" for t in pendientes]
             seleccion = st.selectbox("Seleccionar transferencia a aplicar", opciones_transferencia)
 
             if seleccion:
                 id_transferencia = int(seleccion.split("#")[1].split(" -")[0])
 
                 # Mostrar detalle de la transferencia seleccionada
-                cursor.execute("SELECT id, fecha, nombre_envia, cantidad, observaciones, empresa_mayorista FROM transferencias WHERE id = ?", (id_transferencia,))
+                cursor.execute("""
+                    SELECT t.id, t.fecha, t.nombre_envia, t.cantidad, t.observaciones, t.empresa_mayorista, v.nombre as nombre_vendedora
+                    FROM transferencias t
+                    LEFT JOIN vendedoras v ON t.id_vendedora = v.id
+                    WHERE t.id = ?
+                """, (id_transferencia,))
                 t = cursor.fetchone()
 
                 st.markdown("### Transferencia Seleccionada")
@@ -221,6 +263,8 @@ def mostrar_pagina_transferencias():
                 with col_t4:
                     st.metric("Mayorista", t[5])
 
+                st.markdown(f"**Regístró:** {t[6]}")
+
                 if t[4]:
                     st.caption(f"Obs: {t[4]}")
 
@@ -229,7 +273,7 @@ def mostrar_pagina_transferencias():
                 # Seleccionar mayorista para filtrar viajes
                 st.markdown("### Buscar Viaje para Aplicar")
 
-                mayorista_seleccionado = t[5]  # Usar el mayorista de la transferencia
+                mayorista_seleccionado = t[5]
 
                 st.info(f"💡 Solo se mostrarán viajes del mayorista: **{mayorista_seleccionado}**")
 
@@ -264,10 +308,10 @@ def mostrar_pagina_transferencias():
                     if venta:
                         st.success(f"✅ Localizador encontrado: #{venta[0]}")
 
-                        # Mostrar info de la venta
+                        # Mostrar info de la venta con el RESPONSABLE
                         col_v1, col_v2, col_v3, col_v4 = st.columns(4)
                         with col_v1:
-                            st.metric("Cliente", venta[1][:25] + "..." if len(venta[1]) > 25 else venta[1])
+                            st.metric("Responsable", venta[1][:25] + "..." if len(venta[1]) > 25 else venta[1])
                         with col_v2:
                             st.metric("Destino", venta[2])
                         with col_v3:
@@ -288,7 +332,7 @@ def mostrar_pagina_transferencias():
                             """, (busqueda, fecha_aplicacion, id_transferencia))
 
                             conexion.commit()
-                            st.success(f"✅ Transferencia #{id_transferencia} aplicada al localizador {busqueda}")
+                            st.success(f"✅ Transferencia #{id_transferencia} aplicada al localizador {busqueda} (Responsable: {venta[1]})")
                             st.rerun()
                     else:
                         st.warning("⚠️ No se encontró ningún viaje con ese localizador.")
@@ -301,7 +345,7 @@ def mostrar_pagina_transferencias():
                             with st.expander(f"📍 {v[0]} - {v[1]} - ${v[6]:,.2f} saldo"):
                                 col_v1, col_v2, col_v3 = st.columns(3)
                                 with col_v1:
-                                    st.write(f"**Cliente:** {v[1]}")
+                                    st.write(f"**Cliente/Responsable:** {v[1]}")
                                     st.write(f"**Destino:** {v[2]}")
                                 with col_v2:
                                     st.write(f"**Fecha:** {v[3]}")
@@ -321,7 +365,7 @@ def mostrar_pagina_transferencias():
                                         WHERE id = ?
                                     """, (v[0], fecha_aplicacion, id_transferencia))
                                     conexion.commit()
-                                    st.success(f"✅ Aplicado al localizador {v[0]}")
+                                    st.success(f"✅ Aplicado al localizador {v[0]} (Responsable: {v[1]})")
                                     st.rerun()
                     else:
                         st.info("No hay viajes registrados.")
@@ -331,10 +375,11 @@ def mostrar_pagina_transferencias():
         st.subheader("Aplicaciones Recientes")
 
         cursor.execute("""
-            SELECT id, fecha, nombre_envia, cantidad, empresa_mayorista, aplicado_en, fecha_aplicacion
-            FROM transferencias
-            WHERE estado = 'APLICADO'
-            ORDER BY fecha_aplicacion DESC
+            SELECT t.id, t.fecha, t.nombre_envia, t.cantidad, t.empresa_mayorista, t.aplicado_en, t.fecha_aplicacion,
+                   (SELECT cliente FROM ventas WHERE no_localizador = t.aplicado_en LIMIT 1) as responsable
+            FROM transferencias t
+            WHERE t.estado = 'APLICADO'
+            ORDER BY t.fecha_aplicacion DESC
             LIMIT 10
         """)
         aplicados = cursor.fetchall()
@@ -344,7 +389,7 @@ def mostrar_pagina_transferencias():
                 st.markdown(f"""
                 <div style="background:#e8f5e9; padding:10px; border-radius:8px; margin:5px 0;">
                     <strong>#{a[0]}</strong> - {a[2]} - <strong>${a[3]:,.2f}</strong> - {a[4]}
-                    <br>✅ Aplicado en: <code>{a[5]}</code> el {a[6]}
+                    <br>✅ Aplicado en: <code>{a[5]}</code> - Responsable: <strong>{a[7]}</strong> el {a[6]}
                 </div>
                 """, unsafe_allow_html=True)
         else:

@@ -104,114 +104,228 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Estilos CSS personalizados
+# Estilos CSS personalizados - Diseño Turismar Elegante
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
+    /* Variables de colores del logo */
+    :root {
+        --azul-oscuro: #0D1B2A;
+        --azul-turquesa: #00B4D8;
+        --dorado: #F4A261;
+        --amarillo: #E9C46A;
+        --blanco: #FFFFFF;
+        --gris-claro: #F8F9FA;
+        --gris-medio: #6C757D;
+    }
 
     html, body, [class*="css"] { font-family: 'Outfit', sans-serif; }
-    .main { padding-top: 1.5rem; }
+    .main { padding-top: 1.5rem; background: var(--gris-claro); }
     .block-container { max-width: 1200px; padding: 1rem 2rem 3rem; }
 
+    /* Headers con estilo elegante */
     h1 {
-        font-family: 'DM Serif Display', serif;
-        color: #0D1B2A;
-        font-size: 2rem;
-        border-bottom: 3px solid #0077B6;
-        padding-bottom: 0.4rem;
-        margin-bottom: 1.2rem;
+        font-family: 'Playfair Display', serif;
+        color: var(--azul-oscuro);
+        font-size: 2.2rem;
+        font-weight: 600;
+        border-bottom: 3px solid var(--dorado);
+        padding-bottom: 0.5rem;
+        margin-bottom: 1.5rem;
+        letter-spacing: -0.02em;
     }
-    h2, h3 { color: #0D1B2A; font-weight: 600; }
+    h2 {
+        font-family: 'Playfair Display', serif;
+        color: var(--azul-oscuro);
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+    h3 {
+        color: var(--azul-oscuro);
+        font-weight: 600;
+        font-size: 1.2rem;
+    }
 
+    /* Métricas con estilo premium */
     [data-testid="metric-container"] {
-        background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 100%);
-        border: 1px solid #cce3ff;
-        border-radius: 12px;
-        padding: 16px 20px;
-        box-shadow: 0 2px 8px rgba(0,119,182,0.08);
+        background: linear-gradient(145deg, #FFFFFF 0%, #FEFEFE 100%);
+        border: 1px solid rgba(13, 27, 42, 0.08);
+        border-radius: 16px;
+        padding: 20px 24px;
+        box-shadow: 0 4px 20px rgba(0,180,216,0.08);
+        transition: all 0.3s ease;
+    }
+    [data-testid="metric-container"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0,180,216,0.15);
     }
     [data-testid="metric-container"] label {
-        font-size: 0.78rem;
+        font-size: 0.75rem;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #0077B6 !important;
+        letter-spacing: 0.08em;
+        color: var(--azul-turquesa) !important;
     }
     [data-testid="metric-container"] [data-testid="metric-value"] {
-        font-family: 'DM Serif Display', serif;
-        font-size: 1.6rem;
-        color: #0D1B2A;
+        font-family: 'Playfair Display', serif;
+        font-size: 1.8rem;
+        color: var(--azul-oscuro);
+        font-weight: 600;
     }
 
+    /* Botones principales dorados */
     .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #0077B6 0%, #00B4D8 100%);
-        color: white;
+        background: linear-gradient(135deg, var(--dorado) 0%, #E8923D 100%);
+        color: var(--azul-oscuro);
         border: none;
-        border-radius: 10px;
+        border-radius: 12px;
         font-weight: 600;
         font-size: 0.95rem;
-        padding: 0.6rem 1.4rem;
-        box-shadow: 0 4px 14px rgba(0,119,182,0.35);
-        transition: all 0.2s ease;
+        padding: 0.7rem 1.6rem;
+        box-shadow: 0 4px 15px rgba(244, 162, 97, 0.35);
+        transition: all 0.25s ease;
     }
     .stButton > button[kind="primary"]:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0,119,182,0.45);
+        box-shadow: 0 8px 25px rgba(244, 162, 97, 0.5);
+        background: linear-gradient(135deg, #E8923D 0%, var(--dorado) 100%);
     }
 
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0D1B2A 0%, #1a2e45 100%);
+    /* Botones secundarios */
+    .stButton > button[kind="secondary"] {
+        background: transparent;
+        color: var(--azul-turquesa);
+        border: 2px solid var(--azul-turquesa);
+        border-radius: 10px;
+        font-weight: 600;
+        transition: all 0.2s ease;
     }
-    [data-testid="stSidebar"] .stMarkdown,
-    [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] p { color: #c8d8e8 !important; }
-    [data-testid="stSidebar"] .stButton > button {
-        background: rgba(255,255,255,0.08);
-        color: #e8f4fd;
-        border: 1px solid rgba(255,255,255,0.12);
-        border-radius: 8px;
-        width: 100%;
-        text-align: left;
-        font-weight: 500;
-        transition: all 0.2s;
-    }
-    [data-testid="stSidebar"] .stButton > button:hover {
-        background: rgba(0,180,216,0.25);
-        border-color: #00B4D8;
+    .stButton > button[kind="secondary"]:hover {
+        background: var(--azul-turquesa);
         color: white;
     }
 
-    hr { border-color: #E5E7EB; margin: 1.5rem 0; }
+    /* Sidebar elegante azul oscuro */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, var(--azul-oscuro) 0%, #152538 50%, #1a2e45 100%);
+        border-right: 1px solid rgba(0,180,216,0.2);
+    }
+    [data-testid="stSidebar"] .stMarkdown,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] p { color: #B8C5D4 !important; }
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3 { color: var(--blanco) !important; }
 
+    /* Botones del sidebar */
+    [data-testid="stSidebar"] .stButton > button {
+        background: rgba(255,255,255,0.05);
+        color: #E8F0F7;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 10px;
+        width: 100%;
+        text-align: left;
+        font-weight: 500;
+        padding: 12px 16px;
+        transition: all 0.25s ease;
+        margin-bottom: 4px;
+    }
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background: linear-gradient(90deg, rgba(0,180,216,0.2) 0%, rgba(244,162,97,0.15) 100%);
+        border-color: var(--azul-turquesa);
+        color: var(--blanco);
+        padding-left: 20px;
+    }
+
+    /* Divisores elegantes */
+    hr { border-color: rgba(13, 27, 42, 0.1); margin: 2rem 0; }
+
+    /* Cajas de estado */
     .success-box {
-        padding: 1rem 1.2rem; border-radius: 10px;
-        background: linear-gradient(135deg, #d4edda, #c3e6cb);
-        border-left: 4px solid #28a745; color: #155724; font-weight: 500;
+        padding: 1rem 1.2rem; border-radius: 12px;
+        background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+        border-left: 4px solid #2E7D32; color: #1B5E20; font-weight: 500;
     }
     .warning-box {
-        padding: 1rem 1.2rem; border-radius: 10px;
-        background: linear-gradient(135deg, #fff3cd, #ffeaa7);
-        border-left: 4px solid #FFB703; color: #856404; font-weight: 500;
+        padding: 1rem 1.2rem; border-radius: 12px;
+        background: linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%);
+        border-left: 4px solid var(--dorado); color: #5D4037; font-weight: 500;
     }
     .error-box {
-        padding: 1rem 1.2rem; border-radius: 10px;
-        background: linear-gradient(135deg, #f8d7da, #f5c6cb);
-        border-left: 4px solid #FF6B6B; color: #721c24; font-weight: 500;
+        padding: 1rem 1.2rem; border-radius: 12px;
+        background: linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%);
+        border-left: 4px solid #C62828; color: #B71C1C; font-weight: 500;
     }
+
+    /* Tarjetas personalizadas */
     .card-bloqueo {
-        background: linear-gradient(135deg, #fff8e1, #fff3cd);
-        border-left: 4px solid #FFB703;
-        border-radius: 10px; padding: 14px 20px; margin: 8px 0;
+        background: linear-gradient(135deg, #FFFDE7 0%, #FFF9C4 100%);
+        border-left: 4px solid var(--dorado);
+        border-radius: 14px; padding: 16px 22px; margin: 10px 0;
+        box-shadow: 0 2px 12px rgba(244,162,97,0.15);
     }
     .card-grupo {
-        background: linear-gradient(135deg, #f0fff4, #e6f9ef);
-        border-left: 4px solid #2D6A4F;
-        border-radius: 10px; padding: 14px 20px; margin: 8px 0;
+        background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+        border-left: 4px solid #2E7D32;
+        border-radius: 14px; padding: 16px 22px; margin: 10px 0;
+        box-shadow: 0 2px 12px rgba(46,125,50,0.15);
     }
     .card-general {
-        background: linear-gradient(135deg, #f0f9ff, #e8f4fd);
-        border-left: 4px solid #0077B6;
-        border-radius: 10px; padding: 14px 20px; margin: 8px 0;
+        background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+        border-left: 4px solid var(--azul-turquesa);
+        border-radius: 14px; padding: 16px 22px; margin: 10px 0;
+        box-shadow: 0 2px 12px rgba(0,180,216,0.15);
+    }
+
+    /* Tabs con estilo */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background: transparent;
+        border-radius: 10px 10px 0 0;
+        padding: 12px 20px;
+        font-weight: 500;
+        color: var(--gris-medio);
+        transition: all 0.2s ease;
+    }
+    .stTabs [aria-selected="true"] {
+        background: white;
+        color: var(--azul-oscuro);
+        border-top: 3px solid var(--dorado);
+        font-weight: 600;
+    }
+
+    /* Inputs con borde elegante */
+    .stTextInput > div > div > input,
+    .stNumberInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div > div {
+        border-radius: 10px;
+        border: 1px solid rgba(13,27,42,0.15);
+        transition: all 0.2s ease;
+    }
+    .stTextInput > div > div > input:focus,
+    .stNumberInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: var(--azul-turquesa);
+        box-shadow: 0 0 0 3px rgba(0,180,216,0.1);
+    }
+
+    /* Dataframes/tablas */
+    [data-testid="stDataFrame"] {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+
+    /* Expander */
+    .streamlit-expanderHeader {
+        background: #FEFEFE;
+        border-radius: 10px !important;
+        font-weight: 500;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -878,10 +992,10 @@ def formulario_nueva_venta():
     col_t1, col_t2, col_t3 = st.columns(3)
     with col_t1:
         st.markdown("""
-        <div style="background:linear-gradient(135deg,#e8f4fd,#d0e8f9);border-left:4px solid #0077B6;
+        <div style="background:linear-gradient(135deg,#E3F2FD,#BBDEFB);border-left:4px solid #00B4D8;
         border-radius:10px;padding:14px 18px;text-align:center;">
         <div style="font-size:1.8rem">🏨</div>
-        <div style="font-weight:700;color:#0077B6;font-size:0.95rem">VENTA GENERAL</div>
+        <div style="font-weight:700;color:#00B4D8;font-size:0.95rem">VENTA GENERAL</div>
         <div style="font-size:0.78rem;color:#4a6fa5;margin-top:4px">Hotel libre, fechas y precios propios</div>
         </div>""", unsafe_allow_html=True)
     with col_t2:
@@ -6695,7 +6809,7 @@ def pagina_otros():
                 df_pas_show = df_pas_show[df_pas_show['cliente'].str.contains(buscar_pas, case=False, na=False)]
 
             for _, row in df_pas_show.iterrows():
-                estado_color = {"En trámite":"#E65100","Cita agendada":"#0077B6","Listo":"#2E7D32","Entregado":"#555"}.get(row['estado'],"#555")
+                estado_color = {"En trámite":"#E65100","Cita agendada":"#00B4D8","Listo":"#2E7D32","Entregado":"#555"}.get(row['estado'],"#555")
                 saldo_v = float(row['saldo']) if row['saldo'] else 0
                 with st.expander(f"🛂 {row['cliente']} — {row['tipo']} — {row['estado']} | Saldo: ${saldo_v:,.2f}"):
                     c1, c2, c3 = st.columns(3)
@@ -6847,7 +6961,7 @@ def pagina_otros():
                 df_vis_show = df_vis_show[df_vis_show['cliente'].str.contains(buscar_vis, case=False, na=False)]
 
             for _, row in df_vis_show.iterrows():
-                estado_color = {"En trámite":"#E65100","Cita agendada":"#0077B6","Aprobada":"#2E7D32","Rechazada":"#CC0000","Entregada":"#555"}.get(row['estado'],"#555")
+                estado_color = {"En trámite":"#E65100","Cita agendada":"#00B4D8","Aprobada":"#2E7D32","Rechazada":"#CC0000","Entregada":"#555"}.get(row['estado'],"#555")
                 saldo_v = float(row['saldo']) if row['saldo'] else 0
                 fam_txt = f"Familiar ({int(row['num_integrantes'])} integrantes)" if row['es_familiar'] else "Personal"
                 with st.expander(f"🌎 {row['cliente']} — {row['pais_destino'] or '—'} — {row['tipo_visa']} — {row['estado']}"):
@@ -7008,7 +7122,7 @@ def pagina_otros():
                 df_vue_show = df_vue_show[df_vue_show['pasajero'].str.contains(buscar_vue, case=False, na=False)]
 
             for _, row in df_vue_show.iterrows():
-                estado_color = {"Cotizado":"#E65100","Confirmado":"#0077B6","Emitido":"#2E7D32","Cancelado":"#CC0000"}.get(row['estado'],"#555")
+                estado_color = {"Cotizado":"#E65100","Confirmado":"#00B4D8","Emitido":"#2E7D32","Cancelado":"#CC0000"}.get(row['estado'],"#555")
                 saldo_v = float(row['saldo']) if row['saldo'] else 0
                 with st.expander(f"✈️ {row['pasajero']} — {row['origen'] or '—'} → {row['destino'] or '—'} | {row['aerolinea']} | {row['fecha_vuelo'] or '—'} | {row['estado']}"):
                     c1, c2, c3 = st.columns(3)
@@ -7135,7 +7249,7 @@ def main():
             else:
                 st.markdown("<h1 style='text-align:center;'>✈️</h1>", unsafe_allow_html=True)
         st.markdown("<h1 style='text-align: center;'>Sistema Agencia de Viajes</h1>", unsafe_allow_html=True)
-        st.markdown("<h3 style='text-align: center; color:#0077B6;'>Riviera Maya</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center; color:#00B4D8; font-family: Playfair Display, serif;'>Riviera Maya</h3>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns([1, 2, 1])
         
