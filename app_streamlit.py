@@ -1,5 +1,6 @@
 import streamlit as st
 import sqlite3
+import psycopg2
 import pandas as pd
 from datetime import datetime
 import plotly.express as px
@@ -9,6 +10,18 @@ import re
 import json
 import io
 import os
+
+# Configuración de base de datos
+# Si existe la variable DATABASE_URL, usar PostgreSQL (producción)
+# De lo contrario, usar SQLite local
+if 'DATABASE_URL' in os.environ:
+    # Usar PostgreSQL en producción (Streamlit Cloud)
+    DB_CONNECTION = os.environ['DATABASE_URL']
+    ES_POSTGRES = True
+else:
+    # Usar SQLite local (desarrollo)
+    DB_NAME = "agencia.db"
+    ES_POSTGRES = False
 
 # Módulo de transferencias
 try:
@@ -398,7 +411,12 @@ def obtener_tipo_cambio():
 
 def conectar_db():
     """Conecta a la base de datos"""
-    return sqlite3.connect(DB_NAME, check_same_thread=False)
+    if ES_POSTGRES:
+        # Conectar a PostgreSQL (Neon)
+        return psycopg2.connect(DB_CONNECTION)
+    else:
+        # Conectar a SQLite local
+        return sqlite3.connect(DB_NAME, check_same_thread=False)
 
 
 def inicializar_base_datos():
