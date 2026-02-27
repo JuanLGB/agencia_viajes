@@ -1,15 +1,12 @@
 """
-Script de migración de datos de SQLite a PostgreSQL (Neon)
-Usage: python migrar_a_neon.py
+Script de migración de SQLite a Neon PostgreSQL
 """
 
 import sqlite3
 import psycopg2
 import os
 
-# URL de Neon
 NEON_URL = "postgresql://neondb_owner:npg_Y4GIaHWQuLP2@ep-icy-band-aicyuekj-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-
 SQLITE_DB = "agencia.db"
 
 def get_sqlite_connection():
@@ -19,7 +16,6 @@ def get_pg_connection():
     return psycopg2.connect(NEON_URL)
 
 def sqlite_to_pg_type(sqlite_type):
-    """Convertir tipo SQLite a PostgreSQL"""
     t = (sqlite_type or 'TEXT').upper()
     if 'INTEGER' in t or 'INT' in t:
         return 'INTEGER'
@@ -31,29 +27,17 @@ def sqlite_to_pg_type(sqlite_type):
         return 'BYTEA'
     return 'TEXT'
 
-def crear_tabla_desde_sqlite(pg_cursor, tabla, sqlite_cursor):
-    """Crear tabla en PostgreSQL basándose en la estructura de SQLite"""
-    sqlite_cursor.execute(f"PRAGMA table_info({tabla})")
-    columnas = sqlite_cursor.fetchall()
-
-    cols_def = []
-    for col in columnas:
-        nombre = col[1]
-        tipo = sqlite_to_pg_type(col[2])
-        pk = col[5]
-
-        if pk and tipo == 'INTEGER':
-            cols_def.append(f"{nombre} SERIAL PRIMARY KEY")
-        elif pk:
-            cols_def.append(f"{nombre} {tipo} PRIMARY KEY")
-        else:
-            cols_def.append(f"{nombre} {tipo}")
-
-    sql = f"CREATE TABLE IF NOT EXISTS {tabla} ({', '.join(cols_def)})"
-    pg_cursor.execute(sql)
-
 def migrar_tabla(pg_conn, tabla, sqlite_cursor):
-    """Migrar datos de una tabla"""
+    """Migrar datos de una tabla, creando la tabla primero"""
+    # Obtener estructura de SQLite
+    sqlite_cursor.execute(f"PRAGMA table_info({tabla})")
+    columnas_info = sqlite_cursor.fetchall()
+
+    if not columnas_info:
+        print(f"  - {tabla}: sin estructura")
+        return 0
+
+    # Obtener datos
     sqlite_cursor.execute(f"SELECT * FROM {tabla}")
     filas = sqlite_cursor.fetchall()
 
@@ -61,14 +45,34 @@ def migrar_tabla(pg_conn, tabla, sqlite_cursor):
         print(f"  - {tabla}: sin datos")
         return 0
 
-    sqlite_cursor.execute(f"PRAGMA table_info({tabla})")
-    columnas = [row[1] for row in sqlite_cursor.fetchall()]
+    # Construir CREATE TABLE (sin SERIAL, usando tipos normales)
+    cols_def = []
+    cols_nombres = []
+    for col in columnas_info:
+        nombre = col[1]
+        tipo = sqlite_to_pg_type(col[2])
+        pk = col[5]
+        cols_nombres.append(nombre)
 
-    placeholders = ','.join(['%s'] * len(columnas))
-    columnas_str = ','.join(columnas)
+        if pk and tipo == 'INTEGER':
+            cols_def.append(f"{nombre} INTEGER PRIMARY KEY")
+        elif pk:
+            cols_def.append(f"{nombre} {tipo} PRIMARY KEY")
+        else:
+            cols_def.append(f"{nombre} {tipo}")
 
-    insertados = 0
+    # Crear tabla
     pg_cursor = pg_conn.cursor()
+
+    # Eliminar si existe
+    pg_cursor.execute(f"DROP TABLE IF EXISTS {tabla}")
+
+    sql = f"CREATE TABLE {tabla} ({', '.join(cols_def)})"
+    pg_cursor.execute(sql)
+
+    # Insertar datos
+    placeholders = ','.join(['%s'] * len(cols_nombres))
+    columnas_str = ','.join(cols_nombres)
 
     for fila in filas:
         valores = []
@@ -85,16 +89,14 @@ def migrar_tabla(pg_conn, tabla, sqlite_cursor):
                 f"INSERT INTO {tabla} ({columnas_str}) VALUES ({placeholders})",
                 valores
             )
-            insertados += 1
-        except Exception:
-            pass  # Ignorar duplicados
+        except Exception as e:
+            pass  # Ignorar errores
 
     pg_conn.commit()
-    print(f"  + {tabla}: {insertados} registros")
-    return insertados
+    print(f"  + {tabla}: {len(filas)} registros")
+    return len(filas)
 
 def migrar_datos():
-    """Ejecutar la migración"""
     print("Migrando datos de SQLite a Neon PostgreSQL...\n")
 
     if not os.path.exists(SQLITE_DB):
@@ -112,7 +114,7 @@ def migrar_datos():
         print(f"Error conectando a Neon: {e}")
         return
 
-    # Obtener tablas (excluir sqlite internal)
+    # Obtener tablas
     sqlite_cursor.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
     )
@@ -123,8 +125,6 @@ def migrar_datos():
     total = 0
     for tabla in tablas:
         try:
-            crear_tabla_desde_sqlite(pg_conn.cursor(), tabla, sqlite_cursor)
-            pg_conn.commit()
             count = migrar_tabla(pg_conn, tabla, sqlite_cursor)
             total += count
         except Exception as e:
