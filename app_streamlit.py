@@ -427,6 +427,29 @@ def conectar_db():
 
 def inicializar_base_datos():
     """Crea todas las tablas si no existen (incluyendo grupos y bloqueos)"""
+    # Si estamos usando PostgreSQL, las tablas ya fueron creadas en la migración
+    # Solo necesitamos crear config_recibos si no existe
+    if ES_POSTGRES and PSYCOPG2_DISPONIBLE:
+        try:
+            conn = conectar_db()
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS config_recibos (
+                    clave TEXT PRIMARY KEY,
+                    valor INTEGER DEFAULT 1
+                )
+            """)
+            conn.commit()
+            conn.close()
+        except:
+            pass
+        return
+
+    # Si es PostgreSQL, ya no necesita crear tablas (ya existen de la migración)
+    # Solo crear tablas SQLite
+    return
+
+    # SQLite: crear todas las tablas
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.executescript("""
