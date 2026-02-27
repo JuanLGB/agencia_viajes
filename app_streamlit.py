@@ -27,6 +27,43 @@ if ES_POSTGRES:
 # SQLite local (para desarrollo o fallback)
 DB_NAME = "agencia.db"
 
+# Función helper para ejecutar queries con el placeholder correcto
+def ejecutar_query(conn, query, params=None):
+    """Ejecuta una query con el placeholder correcto según la base de datos"""
+    cursor = conn.cursor()
+    # Convertir ? a %s para PostgreSQL
+    if ES_POSTGRES and PSYCOPG2_DISPONIBLE:
+        query = query.replace('?', '%s')
+    if params:
+        cursor.execute(query, params)
+    else:
+        cursor.execute(query)
+    return cursor
+
+def query_a_dataframe(conn, query, params=None):
+    """Ejecuta una query y devuelve un DataFrame"""
+    # Convertir ? a %s para PostgreSQL
+    if ES_POSTGRES and PSYCOPG2_DISPONIBLE:
+        query = query.replace('?', '%s')
+    cursor = conn.cursor()
+    if params:
+        cursor.execute(query, params)
+    else:
+        cursor.execute(query)
+    columns = [desc[0] for desc in cursor.description] if cursor.description else []
+    rows = cursor.fetchall()
+    cursor.close()
+    if columns:
+        return pd.DataFrame(rows, columns=columns)
+    return pd.DataFrame()
+
+# Wrapper para read_sql_query que maneja PostgreSQL
+def read_sql_query(sql, con, params=None):
+    """Wrapper para read_sql_query que convierte placeholders para PostgreSQL"""
+    if ES_POSTGRES and PSYCOPG2_DISPONIBLE:
+        sql = sql.replace('?', '%s')
+    return read_sql_query(sql, con, params=params)
+
 # Módulo de transferencias
 try:
     from transferencias import mostrar_pagina_transferencias
@@ -1521,7 +1558,7 @@ def alertas_otros():
 
     conn = conectar_db()
     try:
-        df_citas = pd.read_sql_query(f"""
+        df_citas = read_sql_query(f"""
             SELECT 'Pasaporte' AS tipo, id, cliente, celular, fecha_cita, estado
             FROM pasaportes
             WHERE fecha_cita IS NOT NULL
@@ -1610,7 +1647,7 @@ def alertas_riviera():
     conn = conectar_db()
 
     try:
-        df_adeudos = pd.read_sql_query(f"""
+        df_adeudos = read_sql_query(f"""
             SELECT v.id, v.cliente, v.celular_responsable, v.destino,
                    v.fecha_inicio, v.precio_total, v.pagado, v.saldo,
                    COALESCE(vd.nombre,'—') AS vendedora, v.tipo_venta
@@ -1628,7 +1665,7 @@ def alertas_riviera():
         df_adeudos = pd.DataFrame()
 
     try:
-        df_proximos = pd.read_sql_query(f"""
+        df_proximos = read_sql_query(f"""
             SELECT v.id, v.cliente, v.celular_responsable, v.destino,
                    v.fecha_inicio, v.fecha_fin, v.noches,
                    v.precio_total, v.pagado, v.saldo, v.estado,
@@ -1896,7 +1933,7 @@ def mostrar_dashboard():
     with col1:
         # Gráfica de ventas por estado
         conn = conectar_db()
-        df_estados = pd.read_sql_query("""
+        df_estados = read_sql_query("""
             SELECT estado, COUNT(*) as cantidad, SUM(saldo) as saldo_total
             FROM ventas
             WHERE estado != 'CERRADO'
@@ -1959,7 +1996,7 @@ def pagina_ventas_riviera():
                 ORDER BY v.id DESC
             """
 
-        df = pd.read_sql_query(query, conn)
+        df = read_sql_query(query, conn)
         conn.close()
 
         if df.empty:
@@ -2037,10 +2074,10 @@ def pagina_ventas_riviera():
                     c4.metric("Ganancia",f"${row['Ganancia']:,.2f} ({row['% Ganancia']}%)")
 
                     conn2 = conectar_db()
-                    df_pas = pd.read_sql_query(
+                    df_pas = read_sql_query(
                         "SELECT nombre, tipo FROM pasajeros WHERE venta_id = ?",
                         conn2, params=(id_sel,))
-                    df_abonos = pd.read_sql_query(
+                    df_abonos = read_sql_query(
                         "SELECT fecha, monto FROM abonos WHERE venta_id = ? ORDER BY fecha",
                         conn2, params=(id_sel,))
                     conn2.close()
@@ -2212,7 +2249,7 @@ def pagina_ventas_riviera():
                 ORDER BY v.id DESC
             """
 
-        df_ventas = pd.read_sql_query(query_ventas, conn)
+        df_ventas = read_sql_query(query_ventas, conn)
         conn.close()
 
         if df_ventas.empty:
@@ -2679,7 +2716,7 @@ def pagina_viajes_nacionales():
 
         conn = conectar_db()
         try:
-            df_viajes = pd.read_sql_query("""
+            df_viajes = read_sql_query("""
                 SELECT id, nombre_viaje, destino, fecha_salida, fecha_regreso,
                        dias, noches, cupos_totales, cupos_vendidos, cupos_disponibles,
                        precio_persona_doble, precio_persona_triple, estado
@@ -2771,7 +2808,7 @@ def pagina_viajes_nacionales():
                     WHERE cn.estado != 'CERRADO'
                     ORDER BY cn.id DESC
                 """
-            df_cl = pd.read_sql_query(query_cl, conn)
+            df_cl = read_sql_query(query_cl, conn)
         except Exception as e:
             df_cl = pd.DataFrame()
             st.caption(f"⚠️ {e}")
@@ -2845,10 +2882,10 @@ def pagina_viajes_nacionales():
 
                     conn2 = conectar_db()
                     try:
-                        df_pas_n = pd.read_sql_query(
+                        df_pas_n = read_sql_query(
                             "SELECT nombre_completo, tipo, habitacion_asignada FROM pasajeros_nacionales WHERE cliente_id = ?",
                             conn2, params=(id_cl_sel,))
-                        df_abonos_n = pd.read_sql_query(
+                        df_abonos_n = read_sql_query(
                             "SELECT fecha, monto FROM abonos_nacionales WHERE cliente_id = ? ORDER BY fecha",
                             conn2, params=(id_cl_sel,))
                     except:
@@ -2906,7 +2943,7 @@ def pagina_viajes_nacionales():
                     WHERE cn.estado NOT IN ('CERRADO','LIQUIDADO')
                     ORDER BY cn.id DESC
                 """
-            df_pago = pd.read_sql_query(query_pago, conn)
+            df_pago = read_sql_query(query_pago, conn)
         except Exception as e:
             df_pago = pd.DataFrame()
             st.caption(f"⚠️ {e}")
@@ -3287,7 +3324,7 @@ def pagina_viajes_nacionales():
                 st.markdown("#### 📋 Cotizaciones Registradas")
                 conn = conectar_db()
                 try:
-                    df_cots = pd.read_sql_query("""
+                    df_cots = read_sql_query("""
                         SELECT id, nombre_viaje, destino, fecha_salida, fecha_regreso,
                                dias, noches, personas_proyectadas,
                                precio_persona_doble, precio_persona_triple,
@@ -3335,7 +3372,7 @@ def pagina_viajes_nacionales():
                         # Hoteles de la cotización
                         conn2 = conectar_db()
                         try:
-                            df_hots = pd.read_sql_query(
+                            df_hots = read_sql_query(
                                 "SELECT nombre_hotel, noches, costo_doble_real, precio_doble_venta, costo_triple_real, precio_triple_venta FROM hoteles_cotizacion WHERE cotizacion_id = ?",
                                 conn2, params=(id_cot_det,))
                         except:
@@ -3465,7 +3502,7 @@ def pagina_viajes_nacionales():
                 st.markdown("#### ✏️ Editar o Cerrar un Viaje")
                 conn = conectar_db()
                 try:
-                    df_edit = pd.read_sql_query(
+                    df_edit = read_sql_query(
                         "SELECT id, nombre_viaje, destino, cupos_totales, cupos_vendidos, cupos_disponibles, precio_persona_doble, precio_persona_triple, estado FROM viajes_nacionales ORDER BY id DESC",
                         conn)
                 except:
@@ -3536,7 +3573,7 @@ def pagina_viajes_internacionales():
         st.subheader("Viajes Internacionales")
         conn = conectar_db()
         try:
-            df_vi = pd.read_sql_query("""
+            df_vi = read_sql_query("""
                 SELECT id, destino, fecha_salida, fecha_regreso, dias, noches,
                        cupos_totales, cupos_vendidos, cupos_disponibles,
                        precio_adulto_doble_usd, precio_adulto_triple_usd,
@@ -3633,7 +3670,7 @@ def pagina_viajes_internacionales():
                     WHERE ci.estado != 'CERRADO'
                     ORDER BY ci.id DESC
                 """
-            df_ci = pd.read_sql_query(query_ci, conn)
+            df_ci = read_sql_query(query_ci, conn)
         except Exception as e:
             df_ci = pd.DataFrame()
             st.caption(f"⚠️ {e}")
@@ -3696,10 +3733,10 @@ def pagina_viajes_internacionales():
 
                     conn2 = conectar_db()
                     try:
-                        df_pas_i = pd.read_sql_query(
+                        df_pas_i = read_sql_query(
                             "SELECT nombre_completo, tipo, habitacion_asignada FROM pasajeros_internacionales WHERE cliente_id = ?",
                             conn2, params=(id_ci_sel,))
-                        df_abonos_i = pd.read_sql_query(
+                        df_abonos_i = read_sql_query(
                             "SELECT fecha, moneda, monto_original, tipo_cambio, monto_usd FROM abonos_internacionales WHERE cliente_id = ? ORDER BY fecha",
                             conn2, params=(id_ci_sel,))
                     except:
@@ -3740,7 +3777,7 @@ def pagina_viajes_internacionales():
 
         conn = conectar_db()
         try:
-            viajes_int = pd.read_sql_query("""
+            viajes_int = read_sql_query("""
                 SELECT id, destino, fecha_salida, fecha_regreso, cupos_disponibles,
                        precio_adulto_doble_usd, precio_adulto_triple_usd,
                        precio_menor_doble_usd, precio_menor_triple_usd,
@@ -4044,7 +4081,7 @@ def pagina_viajes_internacionales():
                 WHERE ci.estado NOT IN ('CERRADO','LIQUIDADO')
                 ORDER BY ci.id DESC
             """
-            df_pi = pd.read_sql_query(query_pi, conn)
+            df_pi = read_sql_query(query_pi, conn)
         except Exception as e:
             df_pi = pd.DataFrame()
             st.caption(f"⚠️ {e}")
@@ -4268,7 +4305,7 @@ def pagina_viajes_internacionales():
                 st.markdown("#### ✏️ Editar o Cerrar un Viaje")
                 conn = conectar_db()
                 try:
-                    df_gi_edit = pd.read_sql_query("""
+                    df_gi_edit = read_sql_query("""
                         SELECT id, destino, cupos_totales, cupos_vendidos, cupos_disponibles,
                                precio_adulto_doble_usd, precio_adulto_triple_usd,
                                precio_menor_doble_usd, precio_menor_triple_usd,
@@ -4396,7 +4433,7 @@ def _titulo_sheet(ws, titulo, subtitulo=""):
 def _query_rep(sql, params=None):
     conn = conectar_db()
     try:
-        df = pd.read_sql_query(sql, conn, params=params)
+        df = read_sql_query(sql, conn, params=params)
     except Exception as e:
         conn.close()
         raise e
@@ -5952,7 +5989,7 @@ def pagina_configuracion():
 
             # ── Riviera Maya: usa comision_vendedora ya calculada (10% ganancia) ──
             try:
-                df_riv = pd.read_sql_query("""
+                df_riv = read_sql_query("""
                     SELECT
                         vd.nombre        AS vendedora,
                         v.id,
@@ -5972,7 +6009,7 @@ def pagina_configuracion():
 
             # ── Nacionales: % configurable sobre ganancia ──
             try:
-                df_nac = pd.read_sql_query("""
+                df_nac = read_sql_query("""
                     SELECT
                         vd.nombre           AS vendedora,
                         cn.id,
@@ -5994,7 +6031,7 @@ def pagina_configuracion():
 
             # ── Internacionales: % configurable sobre ganancia_usd ──
             try:
-                df_int = pd.read_sql_query("""
+                df_int = read_sql_query("""
                     SELECT
                         'Sin asignar'    AS vendedora,
                         ci.id,
@@ -6191,7 +6228,7 @@ def pagina_configuracion():
 
             conn = conectar_db()
             try:
-                df_hist = pd.read_sql_query("""
+                df_hist = read_sql_query("""
                     SELECT fecha, vendedora, tipo, referencia_id,
                            monto, metodo_pago, nota
                     FROM historial_comisiones
@@ -6243,7 +6280,7 @@ def pagina_configuracion():
 
             conn = conectar_db()
             try:
-                df_cfg = pd.read_sql_query(
+                df_cfg = read_sql_query(
                     "SELECT tipo, porcentaje_comision FROM config_comisiones", conn)
                 cfg_dict = dict(zip(df_cfg["tipo"], df_cfg["porcentaje_comision"]))
             except:
@@ -6320,7 +6357,7 @@ def pagina_configuracion():
             st.markdown("#### Editar o cambiar estado de vendedora")
             conn = conectar_db()
             try:
-                df_vends = pd.read_sql_query(
+                df_vends = read_sql_query(
                     "SELECT id, nombre, activa FROM vendedoras ORDER BY nombre", conn)
             except:
                 df_vends = pd.DataFrame()
@@ -6415,7 +6452,7 @@ def pagina_configuracion():
         with subtabs_hot[1]:
             conn = conectar_db()
             try:
-                df_hoteles = pd.read_sql_query(
+                df_hoteles = read_sql_query(
                     """SELECT id, nombre,
                               COALESCE(estrellas, 4) as estrellas,
                               COALESCE(direccion, '—') as direccion,
@@ -6484,7 +6521,7 @@ def pagina_configuracion():
             st.markdown("#### 📋 Mayoristas Registrados")
             conn = conectar_db()
             try:
-                df_may = pd.read_sql_query(
+                df_may = read_sql_query(
                     "SELECT id, nombre, activo FROM operadores ORDER BY nombre", conn)
             except Exception:
                 df_may = pd.DataFrame()
@@ -6664,7 +6701,7 @@ def pagina_configuracion():
             st.markdown("#### 📋 Todos los Bloqueos")
             conn = conectar_db()
             try:
-                df_bl = pd.read_sql_query("""
+                df_bl = read_sql_query("""
                     SELECT id, hotel, fecha_inicio, fecha_fin, noches,
                            habitaciones_totales, habitaciones_vendidas, habitaciones_disponibles,
                            precio_noche_doble, precio_noche_triple, precio_noche_cuadruple,
@@ -6727,7 +6764,7 @@ def pagina_configuracion():
             st.markdown("#### ✏️ Editar Bloqueo")
             conn = conectar_db()
             try:
-                df_bl_ed = pd.read_sql_query(
+                df_bl_ed = read_sql_query(
                     "SELECT id, hotel, habitaciones_totales, habitaciones_disponibles, habitaciones_vendidas, "
                     "precio_noche_doble, precio_noche_triple, precio_noche_cuadruple, costo_real, estado "
                     "FROM bloqueos ORDER BY id DESC", conn)
@@ -6898,7 +6935,7 @@ def pagina_configuracion():
             st.markdown("#### 📋 Todos los Grupos")
             conn = conectar_db()
             try:
-                df_gr = pd.read_sql_query("""
+                df_gr = read_sql_query("""
                     SELECT id, nombre_grupo, operador, hotel,
                            fecha_inicio, fecha_fin, noches,
                            habitaciones_totales, habitaciones_vendidas, habitaciones_disponibles,
@@ -6959,7 +6996,7 @@ def pagina_configuracion():
             st.markdown("#### ✏️ Editar o Cerrar un Grupo")
             conn = conectar_db()
             try:
-                df_gr_ed = pd.read_sql_query("""
+                df_gr_ed = read_sql_query("""
                     SELECT id, nombre_grupo, hotel, habitaciones_totales, habitaciones_vendidas,
                            habitaciones_disponibles, precio_noche_doble, precio_noche_triple,
                            precio_noche_cuadruple, costo_real, estado
@@ -7045,7 +7082,7 @@ def pagina_mi_historial():
         st.subheader("🏖️ Mis Ventas — Riviera Maya")
         conn = conectar_db()
         try:
-            df_rv = pd.read_sql_query(f"""
+            df_rv = read_sql_query(f"""
                 SELECT v.id, v.cliente, v.destino, v.tipo_habitacion,
                        v.fecha_inicio, v.fecha_fin, v.noches,
                        v.adultos, v.menores,
@@ -7120,10 +7157,10 @@ def pagina_mi_historial():
 
                     conn2 = conectar_db()
                     try:
-                        df_pas_rv = pd.read_sql_query(
+                        df_pas_rv = read_sql_query(
                             "SELECT nombre, tipo FROM pasajeros WHERE venta_id = ?",
                             conn2, params=(id_rv_sel,))
-                        df_ab_rv = pd.read_sql_query(
+                        df_ab_rv = read_sql_query(
                             "SELECT fecha, monto FROM abonos WHERE venta_id = ? ORDER BY fecha",
                             conn2, params=(id_rv_sel,))
                     except:
@@ -7156,7 +7193,7 @@ def pagina_mi_historial():
         st.subheader("🎫 Mis Clientes — Viajes Nacionales")
         conn = conectar_db()
         try:
-            df_nv = pd.read_sql_query(f"""
+            df_nv = read_sql_query(f"""
                 SELECT cn.id, cn.nombre_cliente, vj.nombre_viaje, vj.destino,
                        vj.fecha_salida, vj.fecha_regreso,
                        cn.adultos, cn.menores,
@@ -7229,10 +7266,10 @@ def pagina_mi_historial():
 
                     conn2 = conectar_db()
                     try:
-                        df_pas_nv = pd.read_sql_query(
+                        df_pas_nv = read_sql_query(
                             "SELECT nombre_completo, tipo, habitacion_asignada FROM pasajeros_nacionales WHERE cliente_id = ?",
                             conn2, params=(id_nv_sel,))
-                        df_ab_nv = pd.read_sql_query(
+                        df_ab_nv = read_sql_query(
                             "SELECT fecha, monto FROM abonos_nacionales WHERE cliente_id = ? ORDER BY fecha",
                             conn2, params=(id_nv_sel,))
                     except:
@@ -7267,7 +7304,7 @@ def pagina_mi_historial():
         st.info("ℹ️ Los viajes internacionales no tienen vendedora asignada directamente. Muestra todos los clientes para tu referencia.")
         conn = conectar_db()
         try:
-            df_iv = pd.read_sql_query("""
+            df_iv = read_sql_query("""
                 SELECT ci.id, ci.nombre_cliente, vi.destino,
                        vi.fecha_salida, vi.fecha_regreso,
                        ci.adultos, ci.menores,
@@ -7309,7 +7346,7 @@ def pagina_mi_historial():
 
         # Comisiones pagadas (historial)
         try:
-            df_com_pag = pd.read_sql_query(f"""
+            df_com_pag = read_sql_query(f"""
                 SELECT h.fecha, h.tipo, h.referencia_id, h.monto,
                        h.metodo_pago, h.nota
                 FROM historial_comisiones h
@@ -7322,7 +7359,7 @@ def pagina_mi_historial():
 
         # Comisiones pendientes Riviera
         try:
-            df_com_pen_rv = pd.read_sql_query(f"""
+            df_com_pen_rv = read_sql_query(f"""
                 SELECT v.id, v.cliente, v.destino, v.ganancia,
                        COALESCE(v.comision_vendedora, ROUND(v.ganancia*0.10,2)) AS comision
                 FROM ventas v
@@ -7335,7 +7372,7 @@ def pagina_mi_historial():
 
         # Comisiones pendientes Nacionales
         try:
-            df_com_pen_nac = pd.read_sql_query(f"""
+            df_com_pen_nac = read_sql_query(f"""
                 SELECT cn.id, cn.nombre_cliente AS cliente,
                        vj.nombre_viaje AS destino,
                        COALESCE(cn.ganancia, 0) AS ganancia,
@@ -7426,7 +7463,7 @@ def pagina_otros():
 
         with st.expander("➕ Registrar nuevo trámite de pasaporte", expanded=False):
             conn = conectar_db()
-            vendedoras_df = pd.read_sql_query("SELECT id, nombre FROM vendedoras WHERE activa=1 ORDER BY nombre", conn)
+            vendedoras_df = read_sql_query("SELECT id, nombre FROM vendedoras WHERE activa=1 ORDER BY nombre", conn)
             conn.close()
 
             c1, c2 = st.columns(2)
@@ -7482,7 +7519,7 @@ def pagina_otros():
         conn = conectar_db()
         filtro_pas = "" if es_admin else f"WHERE p.vendedora_id = {id_vend}"
         try:
-            df_pas = pd.read_sql_query(f"""
+            df_pas = read_sql_query(f"""
                 SELECT p.id, p.cliente, p.celular, p.tipo, p.fecha_cita,
                        p.fecha_entrega_est, p.costo_oficial, p.cargo_servicio,
                        p.total, p.pagado, p.saldo, p.estado, p.notas,
@@ -7573,7 +7610,7 @@ def pagina_otros():
 
         with st.expander("➕ Registrar nuevo trámite de visa", expanded=False):
             conn = conectar_db()
-            vendedoras_df = pd.read_sql_query("SELECT id, nombre FROM vendedoras WHERE activa=1 ORDER BY nombre", conn)
+            vendedoras_df = read_sql_query("SELECT id, nombre FROM vendedoras WHERE activa=1 ORDER BY nombre", conn)
             conn.close()
 
             c1, c2 = st.columns(2)
@@ -7634,7 +7671,7 @@ def pagina_otros():
         conn = conectar_db()
         filtro_vis = "" if es_admin else f"WHERE vi.vendedora_id = {id_vend}"
         try:
-            df_vis = pd.read_sql_query(f"""
+            df_vis = read_sql_query(f"""
                 SELECT vi.id, vi.cliente, vi.celular, vi.pais_destino, vi.tipo_visa,
                        vi.es_familiar, vi.num_integrantes, vi.fecha_cita, vi.fecha_entrega_est,
                        vi.costo_oficial, vi.cargo_servicio, vi.total, vi.pagado, vi.saldo,
@@ -7728,7 +7765,7 @@ def pagina_otros():
 
         with st.expander("➕ Registrar nuevo vuelo", expanded=False):
             conn = conectar_db()
-            vendedoras_df = pd.read_sql_query("SELECT id, nombre FROM vendedoras WHERE activa=1 ORDER BY nombre", conn)
+            vendedoras_df = read_sql_query("SELECT id, nombre FROM vendedoras WHERE activa=1 ORDER BY nombre", conn)
             conn.close()
 
             c1, c2 = st.columns(2)
@@ -7790,7 +7827,7 @@ def pagina_otros():
         conn = conectar_db()
         filtro_vue = "" if es_admin else f"WHERE vu.vendedora_id = {id_vend}"
         try:
-            df_vue = pd.read_sql_query(f"""
+            df_vue = read_sql_query(f"""
                 SELECT vu.id, vu.pasajero, vu.celular, vu.tipo, vu.aerolinea,
                        vu.origen, vu.destino, vu.fecha_vuelo, vu.hora_vuelo,
                        vu.num_pasajeros, vu.costo_compra, vu.cargo_servicio,
