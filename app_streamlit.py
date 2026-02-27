@@ -1,6 +1,14 @@
 import streamlit as st
+
+# Configuración para reducir uso de memoria
+st.set_page_config(page_title="Agencia Turismar", page_icon="✈️", layout="wide")
+
+# Reducir memoria de pandas
 import sqlite3
 import pandas as pd
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', 100)
+
 from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
@@ -10,6 +18,7 @@ import json
 import io
 import os
 import sys
+import gc  # Garbage collection
 
 # Configuración de base de datos
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
