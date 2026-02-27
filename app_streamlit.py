@@ -2152,28 +2152,37 @@ def pagina_ventas_riviera():
                                     st.text(f"{row['fecha']}: ${row['monto']:,.2f}")
                                 with col_b:
                                     if st.button(f"🖨️", key=f"reimp_abono_{row['id']}"):
-                                        # Generar recibo
-                                        num_rec = _siguiente_num_recibo()
-                                        fecha_rec = datetime.now().strftime("%d-%B-%Y").replace(
-                                            "January","enero").replace("February","febrero").replace(
-                                            "March","marzo").replace("April","abril").replace(
-                                            "May","mayo").replace("June","junio").replace(
-                                            "July","julio").replace("August","agosto").replace(
-                                            "September","septiembre").replace("October","octubre").replace(
-                                            "November","noviembre").replace("December","diciembre")
-                                        _boton_recibo(
-                                            numero     = num_rec,
-                                            fecha_str  = fecha_rec,
-                                            cliente    = venta_sel['cliente'],
-                                            monto      = row['monto'],
-                                            concepto   = f"Abono - {venta_sel['destino']}",
-                                            forma_pago = row.get('metodo_pago', 'Efectivo'),
-                                            agente     = usuario.get("nombre", "Agente"),
-                                            key_suffix = f"reimp_{row['id']}",
-                                            total_viaje      = venta_sel['precio_total'],
-                                            pagado_acumulado = venta_sel['pagado'],
-                                            nuevo_saldo      = venta_sel['saldo'],
-                                        )
+                                        # Obtener datos de la venta
+                                        conn_venta = conectar_db()
+                                        df_venta = read_sql_query(
+                                            "SELECT cliente, destino, precio_total, pagado, saldo FROM ventas WHERE id = ?",
+                                            conn_venta, params=(id_sel,))
+                                        conn_venta.close()
+
+                                        if not df_venta.empty:
+                                            venta_row = df_venta.iloc[0]
+                                            # Generar recibo
+                                            num_rec = _siguiente_num_recibo()
+                                            fecha_rec = datetime.now().strftime("%d-%B-%Y").replace(
+                                                "January","enero").replace("February","febrero").replace(
+                                                "March","marzo").replace("April","abril").replace(
+                                                "May","mayo").replace("June","junio").replace(
+                                                "July","julio").replace("August","agosto").replace(
+                                                "September","septiembre").replace("October","octubre").replace(
+                                                "November","noviembre").replace("December","diciembre")
+                                            _boton_recibo(
+                                                numero     = num_rec,
+                                                fecha_str  = fecha_rec,
+                                                cliente    = venta_row['cliente'],
+                                                monto      = row['monto'],
+                                                concepto   = f"Abono - {venta_row['destino']}",
+                                                forma_pago = row.get('metodo_pago', 'Efectivo'),
+                                                agente     = usuario.get("nombre", "Agente"),
+                                                key_suffix = f"reimp_{row['id']}",
+                                                total_viaje      = venta_row['precio_total'],
+                                                pagado_acumulado = venta_row['pagado'],
+                                                nuevo_saldo      = venta_row['saldo'],
+                                            )
                         else:
                             st.caption("Sin abonos registrados")
 
@@ -2994,27 +3003,36 @@ def pagina_viajes_nacionales():
                                     st.text(f"{row['fecha']}: ${row['monto']:,.2f}")
                                 with col_b:
                                     if st.button(f"🖨️", key=f"reimp_abono_nac_{row['id']}"):
-                                        num_rec = _siguiente_num_recibo()
-                                        fecha_rec = datetime.now().strftime("%d-%B-%Y").replace(
-                                            "January","enero").replace("February","febrero").replace(
-                                            "March","marzo").replace("April","abril").replace(
-                                            "May","mayo").replace("June","junio").replace(
-                                            "July","julio").replace("August","agosto").replace(
-                                            "September","septiembre").replace("October","octubre").replace(
-                                            "November","noviembre").replace("December","diciembre")
-                                        _boton_recibo(
-                                            numero     = num_rec,
-                                            fecha_str  = fecha_rec,
-                                            cliente    = cliente_sel.get('nombre_cliente', ''),
-                                            monto      = row['monto'],
-                                            concepto   = f"Abono - Viaje Nacional",
-                                            forma_pago = row.get('metodo_pago', 'Efectivo'),
-                                            agente     = usuario.get("nombre", "Agente"),
-                                            key_suffix = f"reimp_nac_{row['id']}",
-                                            total_viaje      = cliente_sel.get('total_pagar', 0),
-                                            pagado_acumulado = cliente_sel.get('total_abonado', 0),
-                                            nuevo_saldo      = cliente_sel.get('saldo', 0),
-                                        )
+                                        # Obtener datos del cliente
+                                        conn_cli = conectar_db()
+                                        df_cliente = read_sql_query(
+                                            "SELECT nombre_cliente, total_pagar, total_abonado, saldo FROM clientes_nacionales WHERE id = ?",
+                                            conn_cli, params=(id_cl_sel,))
+                                        conn_cli.close()
+
+                                        if not df_cliente.empty:
+                                            cliente_row = df_cliente.iloc[0]
+                                            num_rec = _siguiente_num_recibo()
+                                            fecha_rec = datetime.now().strftime("%d-%B-%Y").replace(
+                                                "January","enero").replace("February","febrero").replace(
+                                                "March","marzo").replace("April","abril").replace(
+                                                "May","mayo").replace("June","junio").replace(
+                                                "July","julio").replace("August","agosto").replace(
+                                                "September","septiembre").replace("October","octubre").replace(
+                                                "November","noviembre").replace("December","diciembre")
+                                            _boton_recibo(
+                                                numero     = num_rec,
+                                                fecha_str  = fecha_rec,
+                                                cliente    = cliente_row['nombre_cliente'],
+                                                monto      = row['monto'],
+                                                concepto   = f"Abono - Viaje Nacional",
+                                                forma_pago = row.get('metodo_pago', 'Efectivo'),
+                                                agente     = usuario.get("nombre", "Agente"),
+                                                key_suffix = f"reimp_nac_{row['id']}",
+                                                total_viaje      = cliente_row['total_pagar'],
+                                                pagado_acumulado = cliente_row['total_abonado'],
+                                                nuevo_saldo      = cliente_row['saldo'],
+                                            )
                         else:
                             st.caption("Sin abonos registrados")
 
@@ -3871,27 +3889,36 @@ def pagina_viajes_internacionales():
                                     st.text(f"{row['fecha']}: {monto_str}")
                                 with col_b:
                                     if st.button(f"🖨️", key=f"reimp_abono_int_{row['id']}"):
-                                        num_rec = _siguiente_num_recibo()
-                                        fecha_rec = datetime.now().strftime("%d-%B-%Y").replace(
-                                            "January","enero").replace("February","febrero").replace(
-                                            "March","marzo").replace("April","abril").replace(
-                                            "May","mayo").replace("June","junio").replace(
-                                            "July","julio").replace("August","agosto").replace(
-                                            "September","septiembre").replace("October","octubre").replace(
-                                            "November","noviembre").replace("December","diciembre")
-                                        _boton_recibo(
-                                            numero     = num_rec,
-                                            fecha_str  = fecha_rec,
-                                            cliente    = cliente_int_sel.get('nombre_cliente', ''),
-                                            monto      = row['monto_usd'],
-                                            concepto   = f"Abono - Viaje Internacional",
-                                            forma_pago = row.get('metodo_pago', 'Efectivo'),
-                                            agente     = usuario.get("nombre", "Agente"),
-                                            key_suffix = f"reimp_int_{row['id']}",
-                                            total_viaje      = cliente_int_sel.get('total_usd', 0),
-                                            pagado_acumulado = cliente_int_sel.get('abonado_usd', 0),
-                                            nuevo_saldo      = cliente_int_sel.get('saldo_usd', 0),
-                                        )
+                                        # Obtener datos del cliente
+                                        conn_cli = conectar_db()
+                                        df_cliente_int = read_sql_query(
+                                            "SELECT nombre_cliente, total_usd, abonado_usd, saldo_usd FROM clientes_internacionales WHERE id = ?",
+                                            conn_cli, params=(id_ci_sel,))
+                                        conn_cli.close()
+
+                                        if not df_cliente_int.empty:
+                                            cliente_int_row = df_cliente_int.iloc[0]
+                                            num_rec = _siguiente_num_recibo()
+                                            fecha_rec = datetime.now().strftime("%d-%B-%Y").replace(
+                                                "January","enero").replace("February","febrero").replace(
+                                                "March","marzo").replace("April","abril").replace(
+                                                "May","mayo").replace("June","junio").replace(
+                                                "July","julio").replace("August","agosto").replace(
+                                                "September","septiembre").replace("October","octubre").replace(
+                                                "November","noviembre").replace("December","diciembre")
+                                            _boton_recibo(
+                                                numero     = num_rec,
+                                                fecha_str  = fecha_rec,
+                                                cliente    = cliente_int_row['nombre_cliente'],
+                                                monto      = row['monto_usd'],
+                                                concepto   = f"Abono - Viaje Internacional",
+                                                forma_pago = row.get('metodo_pago', 'Efectivo'),
+                                                agente     = usuario.get("nombre", "Agente"),
+                                                key_suffix = f"reimp_int_{row['id']}",
+                                                total_viaje      = cliente_int_row['total_usd'],
+                                                pagado_acumulado = cliente_int_row['abonado_usd'],
+                                                nuevo_saldo      = cliente_int_row['saldo_usd'],
+                                            )
                         else:
                             st.caption("Sin abonos registrados")
 
