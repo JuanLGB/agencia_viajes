@@ -462,7 +462,39 @@ def obtener_tipo_cambio():
 def conectar_db():
     """Conecta a la base de datos (PostgreSQL si está configurada, SQLite si no)"""
     if ES_POSTGRES and PSYCOPG2_DISPONIBLE and DATABASE_URL:
-        return psycopg2.connect(DATABASE_URL)
+        conn = psycopg2.connect(DATABASE_URL)
+        # Agregar función para convertir placeholders automáticamente
+        original_execute = conn.cursor().execute
+
+        class CursorWrapper:
+            def __init__(self, cursor):
+                self._cursor = cursor
+
+            def execute(self, sql, params=None):
+                if ES_POSTGRES and PSYCOPG2_DISPONIBLE:
+                    sql = sql.replace('?', '%s')
+                return self._cursor.execute(sql, params)
+
+            def __getattr__(self, attr):
+                return getattr(self._cursor, attr)
+
+        class ConnectionWrapper:
+            def __init__(self, conn):
+                self._conn = conn
+
+            def cursor(self):
+                return CursorWrapper(self._conn.cursor())
+
+            def commit(self):
+                return self._conn.commit()
+
+            def close(self):
+                return self._conn.close()
+
+            def __getattr__(self, attr):
+                return getattr(self._conn, attr)
+
+        return ConnectionWrapper(conn)
     else:
         return sqlite3.connect(DB_NAME, check_same_thread=False)
 
