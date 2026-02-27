@@ -64,11 +64,13 @@ def migrar_tabla(pg_conn, tabla, sqlite_cursor):
     # Crear tabla
     pg_cursor = pg_conn.cursor()
 
-    # Eliminar si existe
-    pg_cursor.execute(f"DROP TABLE IF EXISTS {tabla}")
+    # Eliminar si existe (con CASCADE para quitar dependencias)
+    pg_cursor.execute(f"DROP TABLE IF EXISTS {tabla} CASCADE")
+    pg_conn.commit()  # Commit para evitar transacción abortada
 
     sql = f"CREATE TABLE {tabla} ({', '.join(cols_def)})"
     pg_cursor.execute(sql)
+    pg_conn.commit()
 
     # Insertar datos
     placeholders = ','.join(['%s'] * len(cols_nombres))
