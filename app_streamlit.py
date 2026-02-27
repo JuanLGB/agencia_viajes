@@ -11,10 +11,25 @@ import io
 import os
 
 # Configuración de base de datos
-# Por ahora siempre usar SQLite
-DB_NAME = "agencia.db"
-ES_POSTGRES = False
+# Usar PostgreSQL (Neon) si está disponible, si no SQLite
+import os
+import sys
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+ES_POSTGRES = bool(DATABASE_URL)
 PSYCOPG2_DISPONIBLE = False
+
+if ES_POSTGRES:
+    try:
+        import psycopg2
+        PSYCOPG2_DISPONIBLE = True
+    except ImportError:
+        PSYCOPG2_DISPONIBLE = False
+        DATABASE_URL = ""  # Fallback a SQLite
+        ES_POSTGRES = False
+
+# SQLite local (para desarrollo o fallback)
+DB_NAME = "agencia.db"
 
 # Módulo de transferencias
 try:
@@ -403,8 +418,11 @@ def obtener_tipo_cambio():
 
 
 def conectar_db():
-    """Conecta a la base de datos SQLite"""
-    return sqlite3.connect(DB_NAME, check_same_thread=False)
+    """Conecta a la base de datos (PostgreSQL si está configurada, SQLite si no)"""
+    if ES_POSTGRES and PSYCOPG2_DISPONIBLE and DATABASE_URL:
+        return psycopg2.connect(DATABASE_URL)
+    else:
+        return sqlite3.connect(DB_NAME, check_same_thread=False)
 
 
 def inicializar_base_datos():
