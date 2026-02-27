@@ -2412,6 +2412,9 @@ def pagina_ventas_riviera():
                         forma_pago = metodo_pago,
                         agente     = vend_nombre,
                         key_suffix = f"rv_{venta_sel['id']}",
+                        total_viaje      = venta_sel['precio_total'],
+                        pagado_acumulado = nuevo_pagado,
+                        nuevo_saldo      = nuevo_saldo,
                     )
 
                 except Exception as e:
