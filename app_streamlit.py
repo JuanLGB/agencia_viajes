@@ -2139,8 +2139,41 @@ def pagina_ventas_riviera():
                     with c2:
                         st.markdown("**💳 Historial de abonos:**")
                         if not df_abonos.empty:
-                            df_abonos['monto'] = df_abonos['monto'].apply(lambda x: f"${x:,.2f}")
-                            st.dataframe(df_abonos, hide_index=True, use_container_width=True)
+                            # Obtener datos completos de abonos para reimprimir
+                            conn_abonos = conectar_db()
+                            df_abonos_full = read_sql_query(
+                                "SELECT id, fecha, monto, metodo_pago FROM abonos WHERE venta_id = ? ORDER BY fecha",
+                                conn_abonos, params=(id_sel,))
+                            conn_abonos.close()
+
+                            for idx, row in df_abonos_full.iterrows():
+                                col_a, col_b = st.columns([3, 1])
+                                with col_a:
+                                    st.text(f"{row['fecha']}: ${row['monto']:,.2f}")
+                                with col_b:
+                                    if st.button(f"🖨️", key=f"reimp_abono_{row['id']}"):
+                                        # Generar recibo
+                                        num_rec = _siguiente_num_recibo()
+                                        fecha_rec = datetime.now().strftime("%d-%B-%Y").replace(
+                                            "January","enero").replace("February","febrero").replace(
+                                            "March","marzo").replace("April","abril").replace(
+                                            "May","mayo").replace("June","junio").replace(
+                                            "July","julio").replace("August","agosto").replace(
+                                            "September","septiembre").replace("October","octubre").replace(
+                                            "November","noviembre").replace("December","diciembre")
+                                        _boton_recibo(
+                                            numero     = num_rec,
+                                            fecha_str  = fecha_rec,
+                                            cliente    = venta_sel['cliente'],
+                                            monto      = row['monto'],
+                                            concepto   = f"Abono - {venta_sel['destino']}",
+                                            forma_pago = row.get('metodo_pago', 'Efectivo'),
+                                            agente     = usuario.get("nombre", "Agente"),
+                                            key_suffix = f"reimp_{row['id']}",
+                                            total_viaje      = venta_sel['precio_total'],
+                                            pagado_acumulado = venta_sel['pagado'],
+                                            nuevo_saldo      = venta_sel['saldo'],
+                                        )
                         else:
                             st.caption("Sin abonos registrados")
 
@@ -2936,7 +2969,7 @@ def pagina_viajes_nacionales():
                             "SELECT nombre_completo, tipo, habitacion_asignada FROM pasajeros_nacionales WHERE cliente_id = ?",
                             conn2, params=(id_cl_sel,))
                         df_abonos_n = read_sql_query(
-                            "SELECT fecha, monto FROM abonos_nacionales WHERE cliente_id = ? ORDER BY fecha",
+                            "SELECT id, fecha, monto, metodo_pago FROM abonos_nacionales WHERE cliente_id = ? ORDER BY fecha",
                             conn2, params=(id_cl_sel,))
                     except:
                         df_pas_n = pd.DataFrame()
@@ -2954,9 +2987,34 @@ def pagina_viajes_nacionales():
                     with c2:
                         st.markdown("**💳 Historial de abonos:**")
                         if not df_abonos_n.empty:
-                            df_abonos_n['monto'] = df_abonos_n['monto'].apply(lambda x: f"${x:,.2f}")
-                            df_abonos_n.columns = ['Fecha','Monto']
-                            st.dataframe(df_abonos_n, hide_index=True, use_container_width=True)
+                            # Botones de reimprimir para cada abono
+                            for idx, row in df_abonos_n.iterrows():
+                                col_a, col_b = st.columns([3, 1])
+                                with col_a:
+                                    st.text(f"{row['fecha']}: ${row['monto']:,.2f}")
+                                with col_b:
+                                    if st.button(f"🖨️", key=f"reimp_abono_nac_{row['id']}"):
+                                        num_rec = _siguiente_num_recibo()
+                                        fecha_rec = datetime.now().strftime("%d-%B-%Y").replace(
+                                            "January","enero").replace("February","febrero").replace(
+                                            "March","marzo").replace("April","abril").replace(
+                                            "May","mayo").replace("June","junio").replace(
+                                            "July","julio").replace("August","agosto").replace(
+                                            "September","septiembre").replace("October","octubre").replace(
+                                            "November","noviembre").replace("December","diciembre")
+                                        _boton_recibo(
+                                            numero     = num_rec,
+                                            fecha_str  = fecha_rec,
+                                            cliente    = cliente_sel.get('nombre_cliente', ''),
+                                            monto      = row['monto'],
+                                            concepto   = f"Abono - Viaje Nacional",
+                                            forma_pago = row.get('metodo_pago', 'Efectivo'),
+                                            agente     = usuario.get("nombre", "Agente"),
+                                            key_suffix = f"reimp_nac_{row['id']}",
+                                            total_viaje      = cliente_sel.get('total_pagar', 0),
+                                            pagado_acumulado = cliente_sel.get('total_abonado', 0),
+                                            nuevo_saldo      = cliente_sel.get('saldo', 0),
+                                        )
                         else:
                             st.caption("Sin abonos registrados")
 
@@ -3787,7 +3845,7 @@ def pagina_viajes_internacionales():
                             "SELECT nombre_completo, tipo, habitacion_asignada FROM pasajeros_internacionales WHERE cliente_id = ?",
                             conn2, params=(id_ci_sel,))
                         df_abonos_i = read_sql_query(
-                            "SELECT fecha, moneda, monto_original, tipo_cambio, monto_usd FROM abonos_internacionales WHERE cliente_id = ? ORDER BY fecha",
+                            "SELECT id, fecha, moneda, monto_original, tipo_cambio, monto_usd FROM abonos_internacionales WHERE cliente_id = ? ORDER BY fecha",
                             conn2, params=(id_ci_sel,))
                     except:
                         df_pas_i = pd.DataFrame()
@@ -3805,14 +3863,35 @@ def pagina_viajes_internacionales():
                     with c2:
                         st.markdown("**💳 Historial de abonos:**")
                         if not df_abonos_i.empty:
-                            df_abonos_i.columns = ["Fecha","Moneda","Monto Original","T.C.","Monto USD"]
-                            df_abonos_i["Monto Original"] = df_abonos_i.apply(
-                                lambda r: f"${r['Monto Original']:,.2f} {r['Moneda']}", axis=1)
-                            df_abonos_i["Monto USD"] = df_abonos_i["Monto USD"].apply(lambda x: f"${x:,.2f} USD")
-                            df_abonos_i["T.C."] = df_abonos_i.apply(
-                                lambda r: f"{r['T.C.']:.2f}" if r["Moneda"] == "MXN" else "—", axis=1)
-                            st.dataframe(df_abonos_i[["Fecha","Monto Original","T.C.","Monto USD"]],
-                                         hide_index=True, use_container_width=True)
+                            # Botones de reimprimir para cada abono
+                            for idx, row in df_abonos_i.iterrows():
+                                col_a, col_b = st.columns([3, 1])
+                                monto_str = f"${row['monto_usd']:,.2f} USD" if row['moneda'] == 'USD' else f"${row['monto_original']:,.2f} MXN"
+                                with col_a:
+                                    st.text(f"{row['fecha']}: {monto_str}")
+                                with col_b:
+                                    if st.button(f"🖨️", key=f"reimp_abono_int_{row['id']}"):
+                                        num_rec = _siguiente_num_recibo()
+                                        fecha_rec = datetime.now().strftime("%d-%B-%Y").replace(
+                                            "January","enero").replace("February","febrero").replace(
+                                            "March","marzo").replace("April","abril").replace(
+                                            "May","mayo").replace("June","junio").replace(
+                                            "July","julio").replace("August","agosto").replace(
+                                            "September","septiembre").replace("October","octubre").replace(
+                                            "November","noviembre").replace("December","diciembre")
+                                        _boton_recibo(
+                                            numero     = num_rec,
+                                            fecha_str  = fecha_rec,
+                                            cliente    = cliente_int_sel.get('nombre_cliente', ''),
+                                            monto      = row['monto_usd'],
+                                            concepto   = f"Abono - Viaje Internacional",
+                                            forma_pago = row.get('metodo_pago', 'Efectivo'),
+                                            agente     = usuario.get("nombre", "Agente"),
+                                            key_suffix = f"reimp_int_{row['id']}",
+                                            total_viaje      = cliente_int_sel.get('total_usd', 0),
+                                            pagado_acumulado = cliente_int_sel.get('abonado_usd', 0),
+                                            nuevo_saldo      = cliente_int_sel.get('saldo_usd', 0),
+                                        )
                         else:
                             st.caption("Sin abonos registrados")
 
