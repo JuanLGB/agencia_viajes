@@ -57,12 +57,12 @@ def query_a_dataframe(conn, query, params=None):
         return pd.DataFrame(rows, columns=columns)
     return pd.DataFrame()
 
-# Wrapper para read_sql_query que maneja PostgreSQL
+# Wrapper para pd.read_sql_query que maneja PostgreSQL
 def read_sql_query(sql, con, params=None):
-    """Wrapper para read_sql_query que convierte placeholders para PostgreSQL"""
+    """Wrapper para pd.read_sql_query que convierte placeholders para PostgreSQL"""
     if ES_POSTGRES and PSYCOPG2_DISPONIBLE:
         sql = sql.replace('?', '%s')
-    return read_sql_query(sql, con, params=params)
+    return pd.read_sql_query(sql, con, params=params)
 
 # Módulo de transferencias
 try:
