@@ -463,8 +463,7 @@ def conectar_db():
     """Conecta a la base de datos (PostgreSQL si está configurada, SQLite si no)"""
     if ES_POSTGRES and PSYCOPG2_DISPONIBLE and DATABASE_URL:
         conn = psycopg2.connect(DATABASE_URL)
-        # Agregar función para convertir placeholders automáticamente
-        original_execute = conn.cursor().execute
+        conn.autocommit = True  # Auto commit para evitar transacciones bloqueadas
 
         class CursorWrapper:
             def __init__(self, cursor):
@@ -473,7 +472,11 @@ def conectar_db():
             def execute(self, sql, params=None):
                 if ES_POSTGRES and PSYCOPG2_DISPONIBLE:
                     sql = sql.replace('?', '%s')
-                return self._cursor.execute(sql, params)
+                try:
+                    return self._cursor.execute(sql, params)
+                except Exception as e:
+                    conn.rollback()
+                    raise e
 
             def __getattr__(self, attr):
                 return getattr(self._cursor, attr)
@@ -487,6 +490,9 @@ def conectar_db():
 
             def commit(self):
                 return self._conn.commit()
+
+            def rollback(self):
+                return self._conn.rollback()
 
             def close(self):
                 return self._conn.close()
