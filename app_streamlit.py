@@ -9,10 +9,6 @@ import re
 import json
 import io
 import os
-
-# Configuración de base de datos
-# Usar PostgreSQL (Neon) si está disponible, si no SQLite
-import os
 import sys
 
 # Configuración de base de datos
@@ -20,24 +16,12 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 ES_POSTGRES = bool(DATABASE_URL)
 PSYCOPG2_DISPONIBLE = False
 
-# Debug: mostrar configuración de base de datos
-if DATABASE_URL:
-    print(f"DEBUG: DATABASE_URL configurada,长度={len(DATABASE_URL)}")
-else:
-    print("DEBUG: DATABASE_URL NO configurada")
-
 if ES_POSTGRES:
     try:
         import psycopg2
         PSYCOPG2_DISPONIBLE = True
-        print("DEBUG: psycopg2 importado correctamente")
-    except ImportError as e:
-        print(f"DEBUG: Error importando psycopg2: {e}")
+    except ImportError:
         PSYCOPG2_DISPONIBLE = False
-        ES_POSTGRES = False  # Fallback a SQLite si no se puede importar
-
-print(f"DEBUG: ES_POSTGRES={ES_POSTGRES}, PSYCOPG2_DISPONIBLE={PSYCOPG2_DISPONIBLE}")
-        DATABASE_URL = ""  # Fallback a SQLite
         ES_POSTGRES = False
 
 # SQLite local (para desarrollo o fallback)
